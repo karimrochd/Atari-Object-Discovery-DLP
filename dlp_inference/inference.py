@@ -53,7 +53,7 @@ def visualize(frame: np.ndarray, out: "TensorDict", upscale: float = 4.0,
     img = cv2.resize(frame, (int(w * upscale), int(h * upscale)),
                      interpolation=cv2.INTER_NEAREST)
     bbox = out["bbox"].detach().cpu().numpy() * upscale
-    pos = out["position"].detach().cpu().numpy() * upscale
+    pos = ((bbox[:, :2] + bbox[:, 2:]) / 2).detach().cpu().numpy() * upscale
     conf = out["confidence"].detach().cpu().numpy()
 
     for i in range(len(bbox)):
@@ -185,7 +185,15 @@ class DLPInference:
         depth = enc["z_depth"][i, 0].squeeze(-1)        # (K,)
         feats = enc["z_features"][i, 0]                 # (K, D)
 
+        # Testing stuff
+        assert z.isin([-1, 1]).all(), f"z is not in [-1, 1]: {z}"
+        assert scale.isin([0, 1]).all(), f"scale is not in [0, 1]: {scale}"
+        assert conf.isin([0, 1]).all(), f"conf is not in [0, 1]: {conf}"
+        assert depth.isin([0, 1]).all(), f"depth is not in [0, 1]: {depth}"
+        assert feats.isin([0, 1]).all(), f"feats is not in [0, 1]: {feats}"
+
         keep = conf > conf_thresh
+        n_objects = keep.sum().item()
 
         cx = (0.5 + z[keep, 1] / 2) * w
         cy = (0.5 + z[keep, 0] / 2) * h
@@ -197,14 +205,13 @@ class DLPInference:
                             (cy + sh / 2).clamp(0, h)], dim=-1)
 
         return TensorDict({
-            "position": torch.stack([cx, cy], dim=-1),
-            "size": torch.stack([sw, sh], dim=-1),
+            "position": z[keep],
+            "size": scale[keep],
             "bbox": bbox,
             "confidence": conf[keep],
             "depth": depth[keep],
             "embedding": feats[keep],
-            "background_embedding": enc["z_bg_features"][i, 0],
-        }, batch_size=[])
+        }, batch_size=[n_objects])
 
     def _frame_tensordict_tight(self, out, i, orig_hw, conf_thresh,
                                 alpha_floor=0.05, min_pixels=4) -> TensorDict:
@@ -242,15 +249,18 @@ class DLPInference:
         keep = torch.as_tensor(keep, dtype=torch.long, device=conf.device)
         bbox = torch.as_tensor(np.asarray(boxes, np.float32).reshape(-1, 4),
                                device=conf.device)
+
+        # normalize position to [-1, 1] and size to [0, 1]
+        pos = (bbox[:, :2] + bbox[:, 2:]) / torch.tensor([w, h]) * 2 - 1
+        size = (bbox[:, 2:] - bbox[:, :2]) / torch.tensor([w, h]) * 2
         return TensorDict({
-            "position": (bbox[:, :2] + bbox[:, 2:]) / 2,
-            "size": bbox[:, 2:] - bbox[:, :2],
+            "position": pos,
+            "size": size,
             "bbox": bbox,
             "confidence": conf[keep],
             "depth": depth[keep],
             "embedding": feats[keep],
-            "background_embedding": out["mu_bg_features"][i, 0],
-        }, batch_size=[])
+        }, batch_size=[k_render])
 
     # ------------------------------------------------------------------ #
     @torch.no_grad()
@@ -285,13 +295,16 @@ class DLPInference:
             alpha = dec["alpha_masks"]
             if alpha.dim() == 4:                        # (B*T, ...) -> (B, K, 1, s, s)
                 dec["alpha_masks"] = alpha.view(len(arr), *alpha.shape[1:])
-            out = [self._frame_tensordict_tight(dec, i, orig_hw, conf_thresh)
+            obj_out = [self._frame_tensordict_tight(dec, i, orig_hw, conf_thresh)
                    for i in range(len(arr))]
+            bg_out = dec["mu_bg_features"]
         else:
             enc = self.model.encode_all(x, deterministic=True)
-            out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh)
+            obj_out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh)
                    for i in range(len(arr))]
-        return out[0] if single else out
+            bg_out = enc["z_bg_features"]
+        obj_out = obj_out[0] if single else obj_out
+        return obj_out, bg_out
 
     def visualize(self, frame: np.ndarray, out: TensorDict = None,
                   **kwargs) -> np.ndarray:
