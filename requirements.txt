@@ -1,0 +1,19 @@
+# dlp_inference runtime dependencies.
+# Core: torch/numpy/tensordict (inference), opencv-python (visualize).
+# The rest are imported by the vendored DLP model code (util_func /
+# loss_functions / vision_modules), even though only the encoder runs.
+#
+# Tested with: torch 2.6.0+cu124, torchvision 0.21.0, numpy 1.26.4,
+# tensordict 0.13.0, opencv-python 4.11, matplotlib 3.10, pillow 12.2,
+# imageio 2.37, tqdm 4.67, requests 2.32 (conda env `atari_det`).
+
+torch>=2.0
+torchvision
+numpy
+tensordict
+opencv-python
+matplotlib
+pillow
+imageio
+tqdm
+requests

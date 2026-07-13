@@ -1,0 +1,73 @@
+# dlp_inference
+
+Standalone DLP object extraction for Atari: one class, one call, a TensorDict
+of objects out. Ships the trained weights for all 33 games (trained for 100 epochs each).
+
+```python
+from dlp_inference import DLPInference
+
+model = DLPInference("Asterix")          # any game in weights/ (33 available)
+out = model(frame)                       # (H, W, 3) uint8 RGB game frame
+
+out["position"]              # (N, 2) float - object centers, pixels (x, y)
+out["size"]                  # (N, 2) float - object extents, pixels (w, h)
+out["bbox"]                  # (N, 4) float - (x1, y1, x2, y2), pixels
+out["confidence"]            # (N,)   float - obj_on in [0, 1]
+out["depth"]                 # (N,)   float - relative occlusion depth
+out["embedding"]             # (N, 5) float - per-object appearance latent
+out["background_embedding"]  # (5,)   float - background latent (z_bg)
+```
+
+A sequence works too - `model(frames)` with a `(T, H, W, 3)` array or a list
+of frames returns a list of TensorDicts, one per frame (frames are processed
+as a batch; the model is per-frame, no temporal state).
+
+Visual check of any result:
+
+```python
+img = model.visualize(frame)                     # runs inference + draws
+img = model.visualize(frame, out)                # reuse an existing result
+model.visualize(frame, save_path="objects.png")  # also writes the PNG
+```
+
+returns the upscaled annotated RGB image (per-object colored boxes, center
+dots, confidence labels). Also importable standalone:
+`from dlp_inference import visualize`.
+
+## Notes
+
+- **Input**: RGB frames exactly as the emulator produces them (OCAtari
+  `obs_mode="ori"`, `ale.getScreenRGB()`), any resolution - resized to the
+  model's 128x128 internally, outputs mapped back to input pixels. The
+  training-data channel quirk is handled inside; never pre-swap channels.
+- **Confidence gate**: objects with `obj_on <= conf_thresh` (default 0.5) are
+  dropped. `model(frame, conf_thresh=0.0)` returns all 90 particles.
+- **Geometry source**: positions/sizes come straight from the particle
+  latents (`z`, `sigmoid(z_scale)`) - encoder-only inference, no decoding,
+  ~5-20 ms/frame on GPU. Boxes are the model's own object extent estimate.
+- DLP also detects HUD elements (score digits, lives) since it is fully
+  unsupervised - filter by position if you don't want them.
+- Weights layout: `weights/<Game>/{hparams.json, best.pth}`; add a new game
+  by dropping a compatible run dir pair there. `list_games()` enumerates.
+
+## Training a new game
+
+```bash
+python -m dlp_inference.train --game MyGame --root /path/to/dataset
+```
+
+Fully unsupervised - the dataset just needs frames in the OCAtari-PNG layout
+`<root>/images/{train,val}/<Game>_<idx>.png` (128px training resolution is
+handled internally). Writes `weights/<Game>/{hparams.json, best.pth}`, so the
+new game is immediately available to `DLPInference`. Defaults reproduce the
+shipped checkpoints (100 epochs, batch 8, Adam 2e-4; hours on a recent GPU);
+`--epochs 5 --max-frames 400` gives a quick smoke run, `--out` redirects the
+output elsewhere. Hyperparameters live in `dlp_inference/config_default.json`.
+
+## Requirements
+
+`pip install -r requirements.txt` (core: torch, numpy, tensordict,
+opencv-python; the rest is pulled in by the vendored model code).
+
+Model code under `dlp_inference/model/` is vendored from the
+DLPv3 implementation (encoder/decoder; only the encoder is used here).
