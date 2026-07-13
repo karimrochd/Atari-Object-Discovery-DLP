@@ -42,9 +42,12 @@ dots, confidence labels). Also importable standalone:
   training-data channel quirk is handled inside; never pre-swap channels.
 - **Confidence gate**: objects with `obj_on <= conf_thresh` (default 0.5) are
   dropped. `model(frame, conf_thresh=0.0)` returns all 90 particles.
-- **Geometry source**: positions/sizes come straight from the particle
-  latents (`z`, `sigmoid(z_scale)`) - encoder-only inference, no decoding,
-  ~5-20 ms/frame on GPU. Boxes are the model's own object extent estimate.
+- **Geometry source**: by default (`tight_boxes=True`) the per-particle
+  alpha masks are decoded and each box is fitted tightly around the pixels
+  the particle owns (per-pixel argmax over masks); `position`/`size` are the
+  box center/extent. `tight_boxes=False` (constructor or per call) skips the
+  decoder and uses the particle scale latent instead - roughly 2x faster,
+  but boxes reflect the glimpse extent and run larger.
 - DLP also detects HUD elements (score digits, lives) since it is fully
   unsupervised - filter by position if you don't want them.
 - Weights layout: `weights/<Game>/{hparams.json, best.pth}`; add a new game

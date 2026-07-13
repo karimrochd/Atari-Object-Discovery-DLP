@@ -125,11 +125,27 @@ def _build_model(cfg) -> DLP:
     )
 
 
+def _align_to_render(t: torch.Tensor, z_base_var: torch.Tensor,
+                     k_render: int) -> torch.Tensor:
+    """Reproduce the decoder's K_full -> K_render particle selection (lowest
+    positional variance) so latent attributes line up with alpha_masks."""
+    if t.shape[1] == k_render:
+        return t
+    key = z_base_var.sum(-1) if z_base_var.dim() == 3 else z_base_var
+    _, top_idx = torch.topk(key, k=k_render, dim=-1, largest=False)
+    while top_idx.dim() < t.dim():
+        top_idx = top_idx.unsqueeze(-1)
+    expand = [-1] * t.dim()
+    for d in range(2, t.dim()):
+        expand[d] = t.shape[d]
+    return torch.gather(t, dim=1, index=top_idx.expand(*expand))
+
+
 class DLPInference:
     """Per-game DLP object extractor. See module docstring for the output."""
 
     def __init__(self, game: str, weights_root=WEIGHTS_ROOT, device=None,
-                 conf_thresh: float = 0.5):
+                 conf_thresh: float = 0.5, tight_boxes: bool = True):
         game_dir = Path(weights_root) / game
         if not (game_dir / "best.pth").exists():
             raise FileNotFoundError(
@@ -137,6 +153,7 @@ class DLPInference:
                 f"(available: {', '.join(list_games(weights_root))})")
         self.game = game
         self.conf_thresh = conf_thresh
+        self.tight_boxes = tight_boxes
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -189,10 +206,56 @@ class DLPInference:
             "background_embedding": enc["z_bg_features"][i, 0],
         }, batch_size=[])
 
+    def _frame_tensordict_tight(self, out, i, orig_hw, conf_thresh,
+                                alpha_floor=0.05, min_pixels=4) -> TensorDict:
+        """Boxes from the decoded alpha masks: each particle owns the pixels
+        where its mask wins the argmax; box = tight box of that blob."""
+        h, w = orig_hw
+        alpha = out["alpha_masks"]                      # (B, K_r, 1, s, s)
+        k_render = alpha.shape[1]
+        zbv = out["z_base_var"][:, 0]
+        conf = _align_to_render(out["obj_on"][:, 0], zbv, k_render)[i].squeeze(-1)
+        depth = _align_to_render(out["z_depth"][:, 0], zbv, k_render)[i].squeeze(-1)
+        feats = _align_to_render(out["mu_features"][:, 0], zbv, k_render)[i]
+
+        a = alpha[i].squeeze(1).cpu().numpy()           # (K_r, s, s)
+        on = conf.cpu().numpy()
+        a_gated = a.copy()
+        a_gated[on <= conf_thresh] = 0.0
+        valid = a_gated.max(axis=0) >= alpha_floor
+        owner = a_gated.argmax(axis=0)
+
+        s = a.shape[-1]
+        sx, sy = w / s, h / s
+        keep, boxes = [], []
+        for k in range(k_render):
+            if on[k] <= conf_thresh:
+                continue
+            mask = (owner == k) & valid
+            if mask.sum() < min_pixels:
+                continue
+            ys, xs = np.nonzero(mask)
+            boxes.append([xs.min() * sx, ys.min() * sy,
+                          (xs.max() + 1) * sx, (ys.max() + 1) * sy])
+            keep.append(k)
+
+        keep = torch.as_tensor(keep, dtype=torch.long, device=conf.device)
+        bbox = torch.as_tensor(np.asarray(boxes, np.float32).reshape(-1, 4),
+                               device=conf.device)
+        return TensorDict({
+            "position": (bbox[:, :2] + bbox[:, 2:]) / 2,
+            "size": bbox[:, 2:] - bbox[:, :2],
+            "bbox": bbox,
+            "confidence": conf[keep],
+            "depth": depth[keep],
+            "embedding": feats[keep],
+            "background_embedding": out["mu_bg_features"][i, 0],
+        }, batch_size=[])
+
     # ------------------------------------------------------------------ #
     @torch.no_grad()
     def __call__(self, frames: Union[np.ndarray, List[np.ndarray]],
-                 conf_thresh: float = None
+                 conf_thresh: float = None, tight_boxes: bool = None
                  ) -> Union[TensorDict, List[TensorDict]]:
         """Run DLP on one frame or a sequence.
 
@@ -200,9 +263,15 @@ class DLPInference:
         Returns one TensorDict per frame (a bare TensorDict for a single
         frame). Objects with obj_on <= conf_thresh are dropped; pass
         conf_thresh=0 to keep every particle.
+
+        tight_boxes=True (default) decodes the per-particle alpha masks and
+        fits boxes to the owned pixels (tight, a bit slower). False skips the
+        decoder and uses the particle scale latent (fast, looser boxes).
         """
         if conf_thresh is None:
             conf_thresh = self.conf_thresh
+        if tight_boxes is None:
+            tight_boxes = self.tight_boxes
         arr = np.stack(frames) if isinstance(frames, (list, tuple)) \
             else np.asarray(frames)
         single = arr.ndim == 3
@@ -210,9 +279,18 @@ class DLPInference:
             arr = arr[None]
         orig_hw = arr.shape[1:3]
 
-        enc = self.model.encode_all(self._preprocess(arr), deterministic=True)
-        out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh)
-               for i in range(len(arr))]
+        x = self._preprocess(arr)
+        if tight_boxes:
+            dec = self.model(x, deterministic=True, with_loss=False)
+            alpha = dec["alpha_masks"]
+            if alpha.dim() == 4:                        # (B*T, ...) -> (B, K, 1, s, s)
+                dec["alpha_masks"] = alpha.view(len(arr), *alpha.shape[1:])
+            out = [self._frame_tensordict_tight(dec, i, orig_hw, conf_thresh)
+                   for i in range(len(arr))]
+        else:
+            enc = self.model.encode_all(x, deterministic=True)
+            out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh)
+                   for i in range(len(arr))]
         return out[0] if single else out
 
     def visualize(self, frame: np.ndarray, out: TensorDict = None,
