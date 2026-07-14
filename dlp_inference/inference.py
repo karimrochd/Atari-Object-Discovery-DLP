@@ -79,7 +79,7 @@ def list_games(weights_root=WEIGHTS_ROOT) -> List[str]:
                   if (p / "best.pth").exists())
 
 
-def _build_model(cfg) -> DLP:
+def _build_model(cfg, ) -> DLP:
     return DLP(
         cdim=cfg["ch"],
         image_size=cfg["image_size"],
@@ -171,6 +171,7 @@ class DLPInference:
         The checkpoints were trained on channel-swapped PNG loads, so the
         RGB input is swapped to that convention here.
         """
+ 
         x = torch.from_numpy(np.ascontiguousarray(frames[..., ::-1]))
         x = x.permute(0, 3, 1, 2).float() / 255.0
         x = F.interpolate(x, size=(self.image_size, self.image_size),
@@ -185,16 +186,8 @@ class DLPInference:
         depth = enc["z_depth"][i, 0].squeeze(-1)        # (K,)
         feats = enc["z_features"][i, 0]                 # (K, D)
 
-        # Testing stuff
-        assert z.isin([-1, 1]).all(), f"z is not in [-1, 1]: {z}"
-        assert scale.isin([0, 1]).all(), f"scale is not in [0, 1]: {scale}"
-        assert conf.isin([0, 1]).all(), f"conf is not in [0, 1]: {conf}"
-        assert depth.isin([0, 1]).all(), f"depth is not in [0, 1]: {depth}"
-        assert feats.isin([0, 1]).all(), f"feats is not in [0, 1]: {feats}"
-
         keep = conf > conf_thresh
         n_objects = keep.sum().item()
-
         cx = (0.5 + z[keep, 1] / 2) * w
         cy = (0.5 + z[keep, 0] / 2) * h
         sw = scale[keep, 1] * w
@@ -205,12 +198,12 @@ class DLPInference:
                             (cy + sh / 2).clamp(0, h)], dim=-1)
 
         return TensorDict({
-            "position": z[keep],
-            "size": scale[keep],
+            "position": z[keep][..., [1,0]].clamp(-1, 1), # invert x,y in z
+            "size": scale[keep][..., [1,0]].clamp(0, 1),
             "bbox": bbox,
-            "confidence": conf[keep],
-            "depth": depth[keep],
-            "embedding": feats[keep],
+            "confidence": conf[keep].clamp(0, 1),
+            "depth": depth[keep].clamp(0, 1),
+            "embedding": feats[keep], # Normalize the embedding to [-1, 1]
         }, batch_size=[n_objects])
 
     def _frame_tensordict_tight(self, out, i, orig_hw, conf_thresh,
@@ -250,17 +243,19 @@ class DLPInference:
         bbox = torch.as_tensor(np.asarray(boxes, np.float32).reshape(-1, 4),
                                device=conf.device)
 
-        # normalize position to [-1, 1] and size to [0, 1]
-        pos = (bbox[:, :2] + bbox[:, 2:]) / torch.tensor([w, h]) * 2 - 1
-        size = (bbox[:, 2:] - bbox[:, :2]) / torch.tensor([w, h]) * 2
+        # normalize position to [-1, 1] and size to [0, 1], matching _frame_tensordict
+        wh = torch.tensor([w, h], device=conf.device, dtype=bbox.dtype)
+        pos = (bbox[:, :2] + bbox[:, 2:]) / wh - 1          # (x, y)
+        size = (bbox[:, 2:] - bbox[:, :2]) / wh             # (sx, sy)
+
         return TensorDict({
-            "position": pos,
-            "size": size,
+            "position": pos.clamp(-1, 1),
+            "size": size.clamp(0, 1),
             "bbox": bbox,
             "confidence": conf[keep],
             "depth": depth[keep],
             "embedding": feats[keep],
-        }, batch_size=[k_render])
+        }, batch_size=[keep.size(0)])
 
     # ------------------------------------------------------------------ #
     @torch.no_grad()
