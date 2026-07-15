@@ -162,10 +162,16 @@ class DLPInference:
 
     def __init__(self, game: str, weights_root=WEIGHTS_ROOT, device=None,
                  conf_thresh: float = 0.5, tight_boxes: bool = True,
-                 compile_model: bool = False):
-        """compile_model: torch.compile the encoder. ~25% faster single-frame
-        (9.3 vs 12.3 ms) with bit-identical boxes, at the cost of ~30-50 s
-        one-time compilation on the first call (per batch shape).
+                 compile_model: bool = True, k_max: int = 64):
+        """compile_model (default True): CUDA-graph compile (reduce-overhead)
+        of the encoder and the alpha decode: ~11.5 -> ~6.2 ms single-frame,
+        detections identical (boxes exact; float attributes differ ~1e-3 and
+        particle ordering may change). Costs ~30-60 s one-time compilation on
+        the first call (per batch shape) - pass compile_model=False for quick
+        interactive scripts where that warmup is not worth it.
+        k_max: static cap on decoded particles per frame (tight boxes). Must
+        be >= the number of simultaneously confident objects (64 covers every
+        game in the dataset; SpaceInvaders peaks at ~45).
         """
         game_dir = Path(weights_root) / game
         if not (game_dir / "best.pth").exists():
@@ -175,6 +181,7 @@ class DLPInference:
         self.game = game
         self.conf_thresh = conf_thresh
         self.tight_boxes = tight_boxes
+        self.k_max = k_max
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -184,8 +191,35 @@ class DLPInference:
         self.model.load_state_dict(
             torch.load(game_dir / "best.pth", map_location=self.device))
         self.model.eval()
+
+        self._alpha_fn = self._make_alpha_fn()
+        self._compiled = compile_model
         if compile_model:
-            self.model.encoder_module = torch.compile(self.model.encoder_module)
+            # reduce-overhead = CUDA graphs: replays the recorded kernel
+            # sequence with a single launch - the big win for online batch=1
+            self.model.encoder_module = torch.compile(
+                self.model.encoder_module, mode="reduce-overhead")
+            self._alpha_fn = torch.compile(self._alpha_fn,
+                                           mode="reduce-overhead")
+
+    def _make_alpha_fn(self):
+        """Alpha-mask decode for a fixed-size particle set (static shapes,
+        so it is compilable/graphable): glimpse decode (alpha channel only),
+        placement on canvas, depth-importance stitching."""
+        dec = self.model.decoder_module
+
+        def alpha_fn(feats, z, z_scale, conf_w, depth):
+            glimpses = dec.particle_dec(feats.unsqueeze(0))   # (K', 4, p, p)
+            alpha_glimpse = glimpses[:, :1].unsqueeze(0)      # (1, K', 1, p, p)
+            a_obj = dec.translate_patches(z.unsqueeze(0), alpha_glimpse,
+                                          z_scale.unsqueeze(0))
+            a_obj = conf_w[None, :, None, None, None] * a_obj
+            importance = a_obj * torch.sigmoid(-depth[None, :, :, None, None])
+            importance = importance / (importance.sum(dim=1, keepdim=True)
+                                       + 1e-5)
+            return (importance * a_obj)[0, :, 0]              # (K', S, S)
+
+        return alpha_fn
 
     # ------------------------------------------------------------------ #
     def _preprocess(self, frames: np.ndarray) -> torch.Tensor:
@@ -226,7 +260,7 @@ class DLPInference:
             "confidence": conf[keep],
             "depth": depth[keep],
             "embedding": feats[keep],
-            "background_embedding": enc["z_bg_features"][i, 0],
+            "background_embedding": enc["z_bg_features"][i, 0].clone(),
         }, batch_size=[])
 
     def _frame_tensordict_tight(self, enc, i, orig_hw, conf_thresh,
@@ -239,34 +273,24 @@ class DLPInference:
         (see _boxes_from_alpha)."""
         h, w = orig_hw
         conf_all = enc["obj_on"][i, 0].squeeze(-1)      # (K,)
-        gate = torch.nonzero(conf_all > conf_thresh).flatten()
+        # static top-k selection instead of a data-dependent nonzero gate:
+        # shapes stay fixed (CUDA-graph friendly) and no GPU->CPU sync is
+        # forced mid-pipeline. Sub-threshold particles get weight 0, which
+        # reproduces the gated arithmetic exactly for surviving particles.
+        k = min(self.k_max, conf_all.shape[0])
+        conf, gate = conf_all.topk(k)                   # (K',), (K',)
 
         z = enc["z"][i, 0][gate]                        # (K', 2)
         z_scale = enc["z_scale"][i, 0][gate]            # (K', 2) pre-sigmoid
-        conf = conf_all[gate]
         depth = enc["z_depth"][i, 0][gate]              # (K', 1)
         feats = enc["z_features"][i, 0][gate]           # (K', D)
+        conf_w = conf * (conf > conf_thresh)            # masked alpha weight
 
-        if len(gate):
-            dec = self.model.decoder_module
-            # glimpse decode (alpha channel only is used downstream)
-            glimpses = dec.particle_dec(feats.unsqueeze(0))     # (K', 4, p, p)
-            alpha_glimpse = glimpses[:, :1].unsqueeze(0)        # (1, K', 1, p, p)
-            # place on canvas + depth-importance stitching (as decode_objects)
-            a_obj = dec.translate_patches(z.unsqueeze(0), alpha_glimpse,
-                                          z_scale.unsqueeze(0))  # (1,K',1,S,S)
-            a_obj = conf[None, :, None, None, None] * a_obj
-            importance = a_obj * torch.sigmoid(-depth[None, :, :, None, None])
-            importance = importance / (importance.sum(dim=1, keepdim=True) + 1e-5)
-            alpha = (importance * a_obj)[0, :, 0]               # (K', S, S)
-
-            keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
-            s = alpha.shape[-1]
-            bbox = boxes * torch.tensor([w / s, h / s, w / s, h / s],
-                                        device=boxes.device)
-        else:
-            keep = torch.zeros(0, dtype=torch.long, device=conf.device)
-            bbox = torch.zeros(0, 4, device=conf.device)
+        alpha = self._alpha_fn(feats, z, z_scale, conf_w, depth)  # (K', S, S)
+        keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
+        s = alpha.shape[-1]
+        bbox = boxes * torch.tensor([w / s, h / s, w / s, h / s],
+                                    device=boxes.device)
 
         return TensorDict({
             "position": (bbox[:, :2] + bbox[:, 2:]) / 2,
@@ -275,7 +299,7 @@ class DLPInference:
             "confidence": conf[keep],
             "depth": depth.squeeze(-1)[keep],
             "embedding": feats[keep],
-            "background_embedding": enc["z_bg_features"][i, 0],
+            "background_embedding": enc["z_bg_features"][i, 0].clone(),
         }, batch_size=[])
 
     # ------------------------------------------------------------------ #
@@ -298,6 +322,10 @@ class DLPInference:
             conf_thresh = self.conf_thresh
         if tight_boxes is None:
             tight_boxes = self.tight_boxes
+        if self._compiled:
+            # new CUDA-graph step: previous call's graph outputs may now be
+            # overwritten (our returned TensorDicts hold copies, never views)
+            torch.compiler.cudagraph_mark_step_begin()
         arr = np.stack(frames) if isinstance(frames, (list, tuple)) \
             else np.asarray(frames)
         single = arr.ndim == 3
