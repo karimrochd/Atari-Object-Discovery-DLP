@@ -161,7 +161,12 @@ class DLPInference:
     """Per-game DLP object extractor. See module docstring for the output."""
 
     def __init__(self, game: str, weights_root=WEIGHTS_ROOT, device=None,
-                 conf_thresh: float = 0.5, tight_boxes: bool = True):
+                 conf_thresh: float = 0.5, tight_boxes: bool = True,
+                 compile_model: bool = False):
+        """compile_model: torch.compile the encoder. ~25% faster single-frame
+        (9.3 vs 12.3 ms) with bit-identical boxes, at the cost of ~30-50 s
+        one-time compilation on the first call (per batch shape).
+        """
         game_dir = Path(weights_root) / game
         if not (game_dir / "best.pth").exists():
             raise FileNotFoundError(
@@ -179,6 +184,8 @@ class DLPInference:
         self.model.load_state_dict(
             torch.load(game_dir / "best.pth", map_location=self.device))
         self.model.eval()
+        if compile_model:
+            self.model.encoder_module = torch.compile(self.model.encoder_module)
 
     # ------------------------------------------------------------------ #
     def _preprocess(self, frames: np.ndarray) -> torch.Tensor:
