@@ -34,6 +34,41 @@ returns the upscaled annotated RGB image (per-object colored boxes, center
 dots, confidence labels). Also importable standalone:
 `from dlp_inference import visualize`.
 
+## Tracking
+
+Hungarian-matching tracker that assigns
+persistent ids to the detections across consecutive frames:
+
+```python
+from dlp_inference import DLPInference
+from dlp_inference.tracking import HungarianTracker
+
+model = DLPInference("Asterix")
+tracker = HungarianTracker(frame_hw=(210, 160))   # (H, W) of your frames
+
+for frame in frames:                              # consecutive frames!
+    tracked = tracker(model(frame))               # TensorDict in -> out
+    tracked["id"]            # (N,) int64 - persistent object ids
+```
+
+The output TensorDict has exactly the input attributes plus `"id"`.
+
+How it works: each detection is matched to the active tracks by Hungarian
+assignment on `0.3 * cosine_dist(embeddings) + 0.7 * center_distance`, gated
+to |dy|, |dx| <= 0.2 of the frame (hence `frame_hw`). Unmatched detections
+start new tracks; tracks unseen for `max_age=3` frames die; when a track
+re-matches across a gap, the missed frames are back-filled into
+`tracker.history` with linearly interpolated boxes (`"interpolated": True`).
+`new_episode=True` resets active tracks while keeping ids globally unique.
+Tunables: `cost_thresh` (match acceptance, default 0.5), `w_feat`
+(appearance weight, 0.3), `max_age`, `max_dy`/`max_dx`.
+
+Demo (longest test block -> mp4 with id-colored boxes):
+
+```bash
+python test_tracking.py --game Asterix    # -> tracking_test/<game>_hungarian.mp4
+```
+
 ## Notes
 
 - **Input**: RGB frames exactly as the emulator produces them (OCAtari

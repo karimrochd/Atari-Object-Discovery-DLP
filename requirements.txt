@@ -11,6 +11,7 @@ torch>=2.0
 torchvision
 numpy
 tensordict
+scipy
 opencv-python
 matplotlib
 pillow
