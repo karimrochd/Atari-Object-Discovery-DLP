@@ -125,20 +125,36 @@ def _build_model(cfg) -> DLP:
     )
 
 
-def _align_to_render(t: torch.Tensor, z_base_var: torch.Tensor,
-                     k_render: int) -> torch.Tensor:
-    """Reproduce the decoder's K_full -> K_render particle selection (lowest
-    positional variance) so latent attributes line up with alpha_masks."""
-    if t.shape[1] == k_render:
-        return t
-    key = z_base_var.sum(-1) if z_base_var.dim() == 3 else z_base_var
-    _, top_idx = torch.topk(key, k=k_render, dim=-1, largest=False)
-    while top_idx.dim() < t.dim():
-        top_idx = top_idx.unsqueeze(-1)
-    expand = [-1] * t.dim()
-    for d in range(2, t.dim()):
-        expand[d] = t.shape[d]
-    return torch.gather(t, dim=1, index=top_idx.expand(*expand))
+def _boxes_from_alpha(alpha: torch.Tensor, alpha_floor=0.05, min_pixels=4):
+    """Tight boxes from per-particle alpha canvases, fully on device.
+
+    alpha: (K, S, S). Each pixel is owned by the particle whose alpha wins
+    the argmax (if above alpha_floor); boxes are per-owner coordinate
+    min/max via scatter reductions - no python loop over particles.
+    Returns (keep_idx (M,), boxes (M, 4) xyxy in canvas pixels).
+    """
+    k, s, _ = alpha.shape
+    device = alpha.device
+    max_a, owner = alpha.max(dim=0)                       # (S, S)
+    lab = torch.where(max_a >= alpha_floor, owner,
+                      torch.full_like(owner, k)).flatten()  # invalid -> bin k
+    ys = torch.arange(s, device=device).repeat_interleave(s)
+    xs = torch.arange(s, device=device).repeat(s)
+
+    xmin = torch.full((k + 1,), s, device=device, dtype=torch.long)
+    ymin = torch.full((k + 1,), s, device=device, dtype=torch.long)
+    xmax = torch.full((k + 1,), -1, device=device, dtype=torch.long)
+    ymax = torch.full((k + 1,), -1, device=device, dtype=torch.long)
+    xmin.scatter_reduce_(0, lab, xs, "amin")
+    ymin.scatter_reduce_(0, lab, ys, "amin")
+    xmax.scatter_reduce_(0, lab, xs, "amax")
+    ymax.scatter_reduce_(0, lab, ys, "amax")
+    counts = torch.bincount(lab, minlength=k + 1)[:k]
+
+    keep = torch.nonzero(counts >= min_pixels).flatten()
+    boxes = torch.stack([xmin[keep], ymin[keep],
+                         xmax[keep] + 1, ymax[keep] + 1], dim=1).float()
+    return keep, boxes
 
 
 class DLPInference:
@@ -206,50 +222,53 @@ class DLPInference:
             "background_embedding": enc["z_bg_features"][i, 0],
         }, batch_size=[])
 
-    def _frame_tensordict_tight(self, out, i, orig_hw, conf_thresh,
+    def _frame_tensordict_tight(self, enc, i, orig_hw, conf_thresh,
                                 alpha_floor=0.05, min_pixels=4) -> TensorDict:
-        """Boxes from the decoded alpha masks: each particle owns the pixels
-        where its mask wins the argmax; box = tight box of that blob."""
+        """Tight boxes from decoded alpha masks - fast path.
+
+        Only the particles that pass the confidence gate are decoded, only
+        their alpha channel is placed on the canvas (no RGB compositing, no
+        background decode), and the blob->box extraction runs on device
+        (see _boxes_from_alpha)."""
         h, w = orig_hw
-        alpha = out["alpha_masks"]                      # (B, K_r, 1, s, s)
-        k_render = alpha.shape[1]
-        zbv = out["z_base_var"][:, 0]
-        conf = _align_to_render(out["obj_on"][:, 0], zbv, k_render)[i].squeeze(-1)
-        depth = _align_to_render(out["z_depth"][:, 0], zbv, k_render)[i].squeeze(-1)
-        feats = _align_to_render(out["mu_features"][:, 0], zbv, k_render)[i]
+        conf_all = enc["obj_on"][i, 0].squeeze(-1)      # (K,)
+        gate = torch.nonzero(conf_all > conf_thresh).flatten()
 
-        a = alpha[i].squeeze(1).cpu().numpy()           # (K_r, s, s)
-        on = conf.cpu().numpy()
-        a_gated = a.copy()
-        a_gated[on <= conf_thresh] = 0.0
-        valid = a_gated.max(axis=0) >= alpha_floor
-        owner = a_gated.argmax(axis=0)
+        z = enc["z"][i, 0][gate]                        # (K', 2)
+        z_scale = enc["z_scale"][i, 0][gate]            # (K', 2) pre-sigmoid
+        conf = conf_all[gate]
+        depth = enc["z_depth"][i, 0][gate]              # (K', 1)
+        feats = enc["z_features"][i, 0][gate]           # (K', D)
 
-        s = a.shape[-1]
-        sx, sy = w / s, h / s
-        keep, boxes = [], []
-        for k in range(k_render):
-            if on[k] <= conf_thresh:
-                continue
-            mask = (owner == k) & valid
-            if mask.sum() < min_pixels:
-                continue
-            ys, xs = np.nonzero(mask)
-            boxes.append([xs.min() * sx, ys.min() * sy,
-                          (xs.max() + 1) * sx, (ys.max() + 1) * sy])
-            keep.append(k)
+        if len(gate):
+            dec = self.model.decoder_module
+            # glimpse decode (alpha channel only is used downstream)
+            glimpses = dec.particle_dec(feats.unsqueeze(0))     # (K', 4, p, p)
+            alpha_glimpse = glimpses[:, :1].unsqueeze(0)        # (1, K', 1, p, p)
+            # place on canvas + depth-importance stitching (as decode_objects)
+            a_obj = dec.translate_patches(z.unsqueeze(0), alpha_glimpse,
+                                          z_scale.unsqueeze(0))  # (1,K',1,S,S)
+            a_obj = conf[None, :, None, None, None] * a_obj
+            importance = a_obj * torch.sigmoid(-depth[None, :, :, None, None])
+            importance = importance / (importance.sum(dim=1, keepdim=True) + 1e-5)
+            alpha = (importance * a_obj)[0, :, 0]               # (K', S, S)
 
-        keep = torch.as_tensor(keep, dtype=torch.long, device=conf.device)
-        bbox = torch.as_tensor(np.asarray(boxes, np.float32).reshape(-1, 4),
-                               device=conf.device)
+            keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
+            s = alpha.shape[-1]
+            bbox = boxes * torch.tensor([w / s, h / s, w / s, h / s],
+                                        device=boxes.device)
+        else:
+            keep = torch.zeros(0, dtype=torch.long, device=conf.device)
+            bbox = torch.zeros(0, 4, device=conf.device)
+
         return TensorDict({
             "position": (bbox[:, :2] + bbox[:, 2:]) / 2,
             "size": bbox[:, 2:] - bbox[:, :2],
             "bbox": bbox,
             "confidence": conf[keep],
-            "depth": depth[keep],
+            "depth": depth.squeeze(-1)[keep],
             "embedding": feats[keep],
-            "background_embedding": out["mu_bg_features"][i, 0],
+            "background_embedding": enc["z_bg_features"][i, 0],
         }, batch_size=[])
 
     # ------------------------------------------------------------------ #
@@ -280,17 +299,10 @@ class DLPInference:
         orig_hw = arr.shape[1:3]
 
         x = self._preprocess(arr)
-        if tight_boxes:
-            dec = self.model(x, deterministic=True, with_loss=False)
-            alpha = dec["alpha_masks"]
-            if alpha.dim() == 4:                        # (B*T, ...) -> (B, K, 1, s, s)
-                dec["alpha_masks"] = alpha.view(len(arr), *alpha.shape[1:])
-            out = [self._frame_tensordict_tight(dec, i, orig_hw, conf_thresh)
-                   for i in range(len(arr))]
-        else:
-            enc = self.model.encode_all(x, deterministic=True)
-            out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh)
-                   for i in range(len(arr))]
+        enc = self.model.encode_all(x, deterministic=True)  # encoder only
+        build = (self._frame_tensordict_tight if tight_boxes
+                 else self._frame_tensordict)
+        out = [build(enc, i, orig_hw, conf_thresh) for i in range(len(arr))]
         return out[0] if single else out
 
     def visualize(self, frame: np.ndarray, out: TensorDict = None,
