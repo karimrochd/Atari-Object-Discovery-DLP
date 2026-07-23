@@ -1,6 +1,6 @@
 {
   "ds": "ocatari",
-  "root": "/home/karimrochd/ocatari/Victor/OCAtariDataset/dataset",
+  "root": "data_boxing_red",
   "run_prefix": "_dlp",
   "game": "Boxing",
   "device": "cuda",

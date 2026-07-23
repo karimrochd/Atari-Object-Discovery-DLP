@@ -83,6 +83,13 @@ python test_tracking.py --game Asterix    # -> tracking_test/<game>_hungarian.mp
   box center/extent. `tight_boxes=False` (constructor or per call) skips the
   decoder and uses the particle scale latent instead - roughly 2x faster,
   but boxes reflect the glimpse extent and run larger.
+- **Per-game frame transforms** are applied automatically: Boxing's
+  checkpoint was trained on recolored frames (near-black pixels -> red, so
+  the black boxer stops being absorbed into the background), and
+  `DLPInference("Boxing")` recolors incoming frames itself - always pass raw
+  emulator frames. Registry: `dlp_inference/transforms.py`
+  (`GAME_TRANSFORMS`); the transform is idempotent, so pre-recolored frames
+  are fine too.
 - DLP also detects HUD elements (score digits, lives) since it is fully
   unsupervised - filter by position if you don't want them.
 - Weights layout: `weights/<Game>/{hparams.json, best.pth}`; add a new game

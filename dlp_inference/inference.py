@@ -31,6 +31,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from .model.models import DLP
+from .transforms import GAME_TRANSFORMS
 
 WEIGHTS_ROOT = Path(__file__).resolve().parents[1] / "weights"
 
@@ -182,6 +183,9 @@ class DLPInference:
         self.conf_thresh = conf_thresh
         self.tight_boxes = tight_boxes
         self.k_max = k_max
+        # per-game frame transform (e.g. Boxing recolor) applied in __call__;
+        # None for games trained on raw frames
+        self.frame_transform = GAME_TRANSFORMS.get(game)
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -328,6 +332,8 @@ class DLPInference:
             torch.compiler.cudagraph_mark_step_begin()
         arr = np.stack(frames) if isinstance(frames, (list, tuple)) \
             else np.asarray(frames)
+        if self.frame_transform is not None:
+            arr = self.frame_transform(arr)
         single = arr.ndim == 3
         if single:
             arr = arr[None]
