@@ -2671,7 +2671,7 @@ class BgEncoder(nn.Module):
             new_feat = new_feat + self.temp_embed[:, :timesteps]
             cnn_features = new_feat.view(orig_shape)
         features = self.to_latent(cnn_features)
-        features = features.view(features.shape[0], -1)
+        features = features.reshape(features.shape[0], -1)
         if self.projection_mode == 'fc' and self.temp_embed is not None:
             orig_shape = features.shape  # [batch_size * n_kp, ch, patch_size, patch_size]
             new_feat = features.view(-1, timesteps, *features.shape[1:])
@@ -3520,7 +3520,7 @@ class ParticleInteractionEncoder(nn.Module):
 
         # new cnn
         features = self.to_latent(cnn_features)
-        features = features.view(features.shape[0], -1)
+        features = features.reshape(features.shape[0], -1)
         features = self.to_latent_lin(features)
         return features
 

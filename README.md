@@ -6,7 +6,7 @@ of objects out. Ships the trained weights for all 33 games (trained for 100 epoc
 ```python
 from dlp_inference import DLPInference
 
-model = DLPInference("Asterix")          # any game in weights/ (33 available)
+model = DLPInference("Asterix")          # any game in new_weights_bg5/ or old_weights/
 out = model(frame)                       # (H, W, 3) uint8 RGB game frame
 
 out["position"]              # (N, 2) float - object centers, pixels (x, y)
@@ -14,8 +14,9 @@ out["size"]                  # (N, 2) float - object extents, pixels (w, h)
 out["bbox"]                  # (N, 4) float - (x1, y1, x2, y2), pixels
 out["confidence"]            # (N,)   float - obj_on in [0, 1]
 out["depth"]                 # (N,)   float - relative occlusion depth
-out["embedding"]             # (N, 5) float - per-object appearance latent
+out["embedding"]             # (N, 8) float - per-object appearance latent
 out["background_embedding"]  # (5,)   float - background latent (z_bg)
+                             # (old_weights checkpoints: 5-d embedding)
 ```
 
 A sequence works too - `model(frames)` with a `(T, H, W, 3)` array or a list
@@ -92,7 +93,7 @@ python test_tracking.py --game Asterix    # -> tracking_test/<game>_hungarian.mp
   are fine too.
 - DLP also detects HUD elements (score digits, lives) since it is fully
   unsupervised - filter by position if you don't want them.
-- Weights layout: `weights/<Game>/{hparams.json, best.pth}`; add a new game
+- Weights layout: `new_weights_bg5/<Game>` (current recipe: pad 256, z_obj 8, z_bg 5) with fallback to `old_weights/<Game>` (original 34 checkpoints); add a new game
   by dropping a compatible run dir pair there. `list_games()` enumerates.
 
 ## Training a new game
@@ -103,7 +104,7 @@ python -m dlp_inference.train --game MyGame --root /path/to/dataset
 
 Fully unsupervised - the dataset just needs frames in the OCAtari-PNG layout
 `<root>/images/{train,val}/<Game>_<idx>.png` (128px training resolution is
-handled internally). Writes `weights/<Game>/{hparams.json, best.pth}`, so the
+handled internally). Writes `new_weights_bg5/<Game>/{hparams.json, best.pth}`, so the
 new game is immediately available to `DLPInference`. Defaults reproduce the
 shipped checkpoints (100 epochs, batch 8, Adam 2e-4; hours on a recent GPU);
 `--epochs 5 --max-frames 400` gives a quick smoke run, `--out` redirects the

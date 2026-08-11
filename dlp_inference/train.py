@@ -28,6 +28,21 @@ from .data import OCAtariDataset
 from .inference import WEIGHTS_ROOT, _build_model
 from .model.loss_functions import calc_reconstruction_loss
 
+
+def _align_to_render(t, z_base_var, k_render):
+    """Reproduce the decoder's K_full -> K_render particle selection (lowest
+    positional variance) so per-particle attributes line up with alpha_masks."""
+    if t.shape[1] == k_render:
+        return t
+    key = z_base_var.sum(-1) if z_base_var.dim() == 3 else z_base_var
+    _, top_idx = torch.topk(key, k=k_render, dim=-1, largest=False)
+    while top_idx.dim() < t.dim():
+        top_idx = top_idx.unsqueeze(-1)
+    expand = [-1] * t.dim()
+    for d in range(2, t.dim()):
+        expand[d] = t.shape[d]
+    return torch.gather(t, dim=1, index=top_idx.expand(*expand))
+
 DEFAULT_CONFIG = Path(__file__).parent / "config_default.json"
 
 
@@ -35,7 +50,68 @@ def _to_5d(x):
     return x.unsqueeze(1) if x.dim() == 4 else x
 
 
-def _epoch_loss(model, loader, cfg, device):
+@torch.no_grad()
+def save_epoch_viz(model, samples, path, conf_thresh=0.5, alpha_floor=0.05):
+    """Fixed val samples -> grid PNG: input | reconstruction | particle seg.
+
+    Same images every call so training progress is easy to eyeball."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    rng = np.random.RandomState(0)
+    palette = rng.rand(256, 3)
+    palette[0] = 0.0
+
+    model.eval()
+    n = samples.shape[0]
+    fig, axes = plt.subplots(n, 3, figsize=(7.5, 2.5 * n))
+    axes = np.atleast_2d(axes)
+    for i in range(n):
+        x = samples[i : i + 1].unsqueeze(1)                # (1,1,3,H,W)
+        out = model(x, deterministic=True, with_loss=False)
+        rec = out["rec_rgb"]
+        rec = (rec[0, 0] if rec.dim() == 5 else rec[0]).clamp(0, 1)
+        alpha = out["alpha_masks"]
+        alpha = (alpha[0] if alpha.dim() == 5 else alpha[0, 0])  # (K,1,H,W)
+        k_render = alpha.shape[0]
+        obj_on = _align_to_render(out["obj_on"][:, 0],
+                                  out["z_base_var"][:, 0], k_render)[0]
+        a = alpha.squeeze(1).cpu().numpy()
+        on = obj_on.squeeze(-1).cpu().numpy()
+        a[on <= conf_thresh] = 0.0
+        seg = (a.argmax(0) + 1) * (a.max(0) >= alpha_floor)
+
+        panels = [samples[i].permute(1, 2, 0).cpu().numpy().clip(0, 1),
+                  rec.permute(1, 2, 0).cpu().numpy(),
+                  palette[seg % 256]]
+        for j, (p, title) in enumerate(zip(panels, ("input", "recon", "seg"))):
+            axes[i, j].imshow(p)
+            axes[i, j].axis("off")
+            if i == 0:
+                axes[i, j].set_title(title, fontsize=9)
+    plt.tight_layout()
+    plt.savefig(path, dpi=110, bbox_inches="tight")
+    plt.close(fig)
+    model.train()
+
+
+def padded_valid_mask(pad_to, image_size, h, w):
+    """(1,1,image_size,image_size) float mask: 1 = real game pixels,
+    0 = padding. A downscaled cell counts as valid only if EVERY source
+    pixel of its box average lies inside the frame (conservative at
+    fractional boundaries) - same rule as pair_tracker."""
+    import numpy as np
+    v = np.zeros((pad_to, pad_to), np.float32)
+    top, left = (pad_to - h) // 2, (pad_to - w) // 2
+    v[top:top + h, left:left + w] = 1.0
+    f = pad_to // image_size
+    m = v.reshape(image_size, f, image_size, f).mean(axis=(1, 3))
+    return torch.from_numpy((m >= 0.999).astype("float32"))[None, None]
+
+
+def _epoch_loss(model, loader, cfg, device, valid_mask=None):
     losses = []
     with torch.no_grad():
         for batch in loader:
@@ -45,7 +121,8 @@ def _epoch_loss(model, loader, cfg, device):
                         kl_balance=cfg["kl_balance"],
                         recon_loss_type=cfg["recon_loss_type"],
                         recon_loss_func=calc_reconstruction_loss,
-                        beta_obj=cfg.get("beta_obj", 0.0))
+                        beta_obj=cfg.get("beta_obj", 0.0),
+                        valid_mask=valid_mask)
             losses.append(out["loss_dict"]["loss"].item())
     return sum(losses) / max(1, len(losses))
 
@@ -78,11 +155,22 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
     def split(mode):
         return OCAtariDataset(root=cfg["root"], mode=mode, sample_length=1,
                               image_size=cfg["image_size"], games=[game],
-                              max_frames=max_frames)
+                              max_frames=max_frames,
+                              pad_to=cfg.get("pad_to", 0))
 
     ds_train, ds_val = split("train"), split("val")
     if len(ds_train) == 0:
         raise SystemExit(f"[train] no {game!r} frames in {root}/images/train/")
+
+    valid_mask = None
+    if cfg.get("pad_to", 0):
+        from PIL import Image as _Image
+        w0, h0 = _Image.open(ds_train.paths[0]).size   # native frame size
+        valid_mask = padded_valid_mask(cfg["pad_to"], cfg["image_size"],
+                                       h0, w0).to(device)
+        print(f"[train] pad_to={cfg['pad_to']}: frames {h0}x{w0} centered, "
+              f"loss masked to {int(valid_mask.sum())} / "
+              f"{cfg['image_size'] ** 2} cells")
     train_loader = DataLoader(ds_train, batch_size=cfg["batch_size"],
                               shuffle=True, num_workers=cfg.get("num_workers", 4),
                               pin_memory=True, drop_last=True)
@@ -95,6 +183,17 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
 
     best_val = float("inf")
     eval_freq = cfg.get("eval_epoch_freq", 5)
+
+    # fixed validation samples for the periodic viz (same frames every time)
+    viz_dir = out_dir / "viz"
+    viz_dir.mkdir(exist_ok=True)
+    viz_samples = None
+    if len(ds_val):
+        n_viz = min(6, len(ds_val))
+        viz_samples = torch.stack(
+            [_to_5d(ds_val[i][0].unsqueeze(0))[0, 0] for i in range(n_viz)]
+        ).to(device)
+
     for epoch in range(cfg["num_epochs"]):
         model.train()
         warmup = epoch < cfg.get("warmup_epoch", 0)
@@ -106,7 +205,8 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
                         kl_balance=cfg["kl_balance"],
                         recon_loss_type=cfg["recon_loss_type"],
                         recon_loss_func=calc_reconstruction_loss,
-                        beta_obj=cfg.get("beta_obj", 0.0))
+                        beta_obj=cfg.get("beta_obj", 0.0),
+                        valid_mask=valid_mask)
             loss = out["loss_dict"]["loss"]
             optimizer.zero_grad()
             loss.backward()
@@ -114,8 +214,12 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
             pbar.set_postfix(loss=f"{loss.item():.3f}")
 
         if epoch % eval_freq == 0 or epoch == cfg["num_epochs"] - 1:
+            if viz_samples is not None:
+                viz_path = viz_dir / f"epoch_{epoch:03d}.png"
+                save_epoch_viz(model, viz_samples, viz_path)
+                print(f"[train] viz -> {viz_path}")
             model.eval()
-            val = _epoch_loss(model, val_loader, cfg, device)
+            val = _epoch_loss(model, val_loader, cfg, device, valid_mask)
             print(f"[train] epoch {epoch}  val_loss = {val:.4f}")
             if val < best_val:  # only the best checkpoint is kept
                 best_val = val
@@ -137,10 +241,16 @@ def main():
     ap.add_argument("--max-frames", type=int, default=None,
                     help="cap frames per split (smoke runs)")
     ap.add_argument("--device", default=None)
+    ap.add_argument("--bg-dim", type=int, default=None,
+                    help="override learned_bg_feature_dim (z_bg size, "
+                         "default from config_default.json)")
     args = ap.parse_args()
+    overrides = {}
+    if args.bg_dim is not None:
+        overrides["learned_bg_feature_dim"] = args.bg_dim
     train(args.game, args.root, out_dir=args.out, num_epochs=args.epochs,
           batch_size=args.batch_size, device=args.device,
-          max_frames=args.max_frames)
+          max_frames=args.max_frames, **overrides)
 
 
 if __name__ == "__main__":

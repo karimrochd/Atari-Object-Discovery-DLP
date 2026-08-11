@@ -33,7 +33,23 @@ from tensordict import TensorDict
 from .model.models import DLP
 from .transforms import GAME_TRANSFORMS
 
-WEIGHTS_ROOT = Path(__file__).resolve().parents[1] / "weights"
+# new_weights_bg5 = current recipe (pad_to=256, z_obj=8, z_bg=5); old_weights =
+# the original 34 checkpoints. Lookup prefers new_weights_bg5, falls back to old.
+NEW_WEIGHTS = Path(__file__).resolve().parents[1] / "new_weights_bg5"
+OLD_WEIGHTS = Path(__file__).resolve().parents[1] / "old_weights"
+WEIGHTS_ROOT = NEW_WEIGHTS   # default for new training runs
+
+
+def _resolve_game_dir(game, weights_root) -> Path:
+    """Game dir under weights_root; when weights_root is the default, fall
+    back to old_weights so every game stays loadable during the transition."""
+    cand = [Path(weights_root) / game]
+    if Path(weights_root) == NEW_WEIGHTS:
+        cand.append(OLD_WEIGHTS / game)
+    for c in cand:
+        if (c / "best.pth").exists():
+            return c
+    return cand[0]
 
 _PALETTE = [(80, 220, 80), (250, 120, 120), (110, 170, 255), (255, 200, 80),
             (220, 120, 255), (120, 240, 240), (255, 150, 60), (170, 255, 120),
@@ -76,8 +92,15 @@ def visualize(frame: np.ndarray, out: "TensorDict", upscale: float = 4.0,
 
 
 def list_games(weights_root=WEIGHTS_ROOT) -> List[str]:
-    return sorted(p.name for p in Path(weights_root).iterdir()
-                  if (p / "best.pth").exists())
+    roots = [Path(weights_root)]
+    if Path(weights_root) == NEW_WEIGHTS and OLD_WEIGHTS.is_dir():
+        roots.append(OLD_WEIGHTS)
+    names = set()
+    for root in roots:
+        if root.is_dir():
+            names |= {p.name for p in root.iterdir()
+                      if (p / "best.pth").exists()}
+    return sorted(names)
 
 
 def _build_model(cfg) -> DLP:
@@ -174,7 +197,7 @@ class DLPInference:
         be >= the number of simultaneously confident objects (64 covers every
         game in the dataset; SpaceInvaders peaks at ~45).
         """
-        game_dir = Path(weights_root) / game
+        game_dir = _resolve_game_dir(game, weights_root)
         if not (game_dir / "best.pth").exists():
             raise FileNotFoundError(
                 f"no weights for {game!r} under {weights_root} "
@@ -191,6 +214,9 @@ class DLPInference:
 
         self.cfg = json.loads((game_dir / "hparams.json").read_text())
         self.image_size = self.cfg["image_size"]
+        # checkpoints trained on padded canvases (cfg pad_to > 0) get the
+        # same padding at inference; boxes are mapped back to input pixels
+        self.pad_to = self.cfg.get("pad_to", 0)
         self.model = _build_model(self.cfg).to(self.device)
         self.model.load_state_dict(
             torch.load(game_dir / "best.pth", map_location=self.device))
@@ -232,8 +258,17 @@ class DLPInference:
         The checkpoints were trained on channel-swapped PNG loads, so the
         RGB input is swapped to that convention here.
         """
-        x = torch.from_numpy(np.ascontiguousarray(frames[..., ::-1]))
+        arr = np.ascontiguousarray(frames[..., ::-1])
+        if self.pad_to:
+            t, h, w = arr.shape[:3]
+            canvas = np.zeros((t, self.pad_to, self.pad_to, 3), arr.dtype)
+            top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
+            canvas[:, top:top + h, left:left + w] = arr
+            arr = canvas
+        x = torch.from_numpy(arr)
         x = x.permute(0, 3, 1, 2).float() / 255.0
+        # with pad_to=256 -> 128 this is an exact 2x box average (matches the
+        # training-time PIL resize); without padding it is the legacy squash
         x = F.interpolate(x, size=(self.image_size, self.image_size),
                           mode="bilinear", align_corners=False)
         return x.unsqueeze(1).to(self.device)  # frames as batch, T=1 each
@@ -248,10 +283,18 @@ class DLPInference:
 
         keep = conf > conf_thresh
 
-        cx = (0.5 + z[keep, 1] / 2) * w
-        cy = (0.5 + z[keep, 0] / 2) * h
-        sw = scale[keep, 1] * w
-        sh = scale[keep, 0] * h
+        if self.pad_to:
+            # latents span the padded canvas; undo the centered pad
+            top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
+            cx = (0.5 + z[keep, 1] / 2) * self.pad_to - left
+            cy = (0.5 + z[keep, 0] / 2) * self.pad_to - top
+            sw = scale[keep, 1] * self.pad_to
+            sh = scale[keep, 0] * self.pad_to
+        else:
+            cx = (0.5 + z[keep, 1] / 2) * w
+            cy = (0.5 + z[keep, 0] / 2) * h
+            sw = scale[keep, 1] * w
+            sh = scale[keep, 0] * h
         bbox = torch.stack([(cx - sw / 2).clamp(0, w),
                             (cy - sh / 2).clamp(0, h),
                             (cx + sw / 2).clamp(0, w),
@@ -293,8 +336,20 @@ class DLPInference:
         alpha = self._alpha_fn(feats, z, z_scale, conf_w, depth)  # (K', S, S)
         keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
         s = alpha.shape[-1]
-        bbox = boxes * torch.tensor([w / s, h / s, w / s, h / s],
-                                    device=boxes.device)
+        if self.pad_to:
+            # model px -> padded px -> original px (undo the centered pad)
+            f = self.pad_to / s
+            top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
+            bbox = boxes * f - torch.tensor([left, top, left, top],
+                                            device=boxes.device)
+            lim = torch.tensor([w, h, w, h], device=boxes.device,
+                               dtype=bbox.dtype)
+            bbox = bbox.clamp(min=torch.zeros_like(lim), max=lim)
+            good = (bbox[:, 2] - bbox[:, 0] > 0) & (bbox[:, 3] - bbox[:, 1] > 0)
+            keep, bbox = keep[good], bbox[good]
+        else:
+            bbox = boxes * torch.tensor([w / s, h / s, w / s, h / s],
+                                        device=boxes.device)
 
         return TensorDict({
             "position": (bbox[:, :2] + bbox[:, 2:]) / 2,

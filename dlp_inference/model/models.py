@@ -1069,7 +1069,7 @@ class DLP(nn.Module):
     def forward(self, x, deterministic=False, warmup=False, with_loss=False, beta_kl=0.1, beta_dyn=0.1,
                 beta_rec=1.0, kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
                 balance=0.5, beta_dyn_rec=1.0, num_static=None, actions=None, actions_mask=None, lang_embed=None,
-                beta_obj=0.0, done_mask=None, x_goal=None):
+                beta_obj=0.0, done_mask=None, x_goal=None, valid_mask=None):
         if len(x.shape) == 4:
             # x: [bs, ch, h, w]
             batch_size = x.size(0)
@@ -1313,7 +1313,8 @@ class DLP(nn.Module):
                                        beta_dyn=beta_dyn, beta_rec=beta_rec, kl_balance=kl_balance,
                                        dynamic_discount=dynamic_discount, recon_loss_type=recon_loss_type,
                                        recon_loss_func=recon_loss_func, beta_dyn_rec=beta_dyn_rec,
-                                       num_static=num_static, beta_obj=beta_obj, done_mask=done_mask)
+                                       num_static=num_static, beta_obj=beta_obj, done_mask=done_mask,
+                                       valid_mask=valid_mask)
             output_dict['loss_dict'] = loss_dict
         else:
             output_dict['loss_dict'] = None
@@ -1323,7 +1324,7 @@ class DLP(nn.Module):
     def calc_elbo(self, x, model_output, warmup=False, beta_kl=0.1, beta_dyn=0.1, beta_rec=1.0,
                   kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None, balance=0.5,
                   beta_dyn_rec=1.0, num_static=1, use_kl_mask=True, apply_mask_on_obj_on=False, beta_obj=0.0,
-                  done_mask=None):
+                  done_mask=None, valid_mask=None):
         # beta_obj = beta_reg in the paper
         if self.is_dynamics_model:
             return self.calc_dyn_elbo(x, model_output, warmup, beta_kl, beta_dyn, beta_rec,
@@ -1335,7 +1336,7 @@ class DLP(nn.Module):
             return self.calc_static_elbo(x, model_output, warmup, beta_kl, beta_dyn, beta_rec,
                                          kl_balance, dynamic_discount, recon_loss_type, recon_loss_func,
                                          balance, use_kl_mask=use_kl_mask, apply_mask_on_obj_on=apply_mask_on_obj_on,
-                                         beta_obj=beta_obj)
+                                         beta_obj=beta_obj, valid_mask=valid_mask)
 
     def calc_dyn_elbo(self, x, model_output, warmup=False, beta_kl=0.1, beta_dyn=0.1, beta_rec=1.0,
                       kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
@@ -1824,7 +1825,8 @@ class DLP(nn.Module):
 
     def calc_static_elbo(self, x, model_output, warmup=False, beta_kl=0.05, beta_dyn=1.0, beta_rec=1.0,
                          kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
-                         balance=0.5, use_kl_mask=True, apply_mask_on_obj_on=False, beta_obj=0.0):
+                         balance=0.5, use_kl_mask=True, apply_mask_on_obj_on=False, beta_obj=0.0,
+                         valid_mask=None):
         # x: [batch_size, timestep_horizon, ch, h, w]
         # constant prior for all timesteps (single image DLP)
         # balance: kl balance for dynamics kl posterior and prior
@@ -1879,7 +1881,17 @@ class DLP(nn.Module):
             loss_rec = recon_loss_func(x, rec_x, reduction="mean")
             loss_rec = (x.shape[1] * x.shape[2] * x.shape[3]) * loss_rec
         else:
-            loss_rec = calc_reconstruction_loss(x, rec_x, loss_type='mse', reduction='none')
+            if valid_mask is not None:
+                # padded-input training: padding pixels carry no gradient.
+                # calc_reconstruction_loss sums per sample, so mask the
+                # inputs - identical to per-pixel masking for a binary mask.
+                vm = valid_mask.to(x.device)
+                loss_rec = calc_reconstruction_loss(x * vm, rec_x * vm,
+                                                    loss_type='mse',
+                                                    reduction='none')
+            else:
+                loss_rec = calc_reconstruction_loss(x, rec_x, loss_type='mse',
+                                                    reduction='none')
             loss_rec = loss_rec.view(batch_size, timestep_horizon, -1)
             loss_rec = loss_rec.sum(-1).mean()
 

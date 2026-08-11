@@ -45,6 +45,9 @@ class OCAtariDataset(Dataset):
         games=None,            # optional list/set of game names to filter to
         max_frames=None,       # optional cap (smoke testing)
         window_half=0,         # K > 0 -> items are [t-K, t+K] temporal windows
+        pad_to=0,              # >0: center the frame on a pad_to^2 zero canvas
+                               # before resizing (aspect kept, exact-factor
+                               # downscale, no fractional interpolation)
     ):
         super().__init__()
         assert mode in ['train', 'val', 'valid', 'test']
@@ -80,6 +83,7 @@ class OCAtariDataset(Dataset):
         self.games       = [e[0] for e in entries]
         self.frame_ids   = [e[1] for e in entries]
         self.window_half = window_half
+        self.pad_to = pad_to
         self.T           = (2 * window_half + 1) if window_half > 0 else sample_length
         self.image_size  = image_size
         self.root        = root
@@ -111,7 +115,26 @@ class OCAtariDataset(Dataset):
 
     def _load_frame(self, idx):
         pil = Image.open(self.paths[idx]).convert('RGB')
-        # PIL.resize takes (W, H).
+        # per-game frame transform (e.g. Boxing black->red recolor), applied
+        # at train time exactly as DLPInference applies it at inference.
+        # PIL loads the dataset PNGs in the swapped channel convention while
+        # the transforms are defined on true RGB, hence the swap sandwich
+        # (recolor_black itself is order-invariant, but the paint color has
+        # an orientation).
+        from .transforms import GAME_TRANSFORMS
+        tf = GAME_TRANSFORMS.get(self.games[idx])
+        if tf is not None:
+            fr = np.asarray(pil)
+            pil = Image.fromarray(tf(fr[..., ::-1])[..., ::-1])
+        if self.pad_to:
+            fr = np.asarray(pil)                             # (H, W, 3)
+            h, w = fr.shape[:2]
+            canvas = np.zeros((self.pad_to, self.pad_to, 3), np.uint8)
+            top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
+            canvas[top:top + h, left:left + w] = fr
+            pil = Image.fromarray(canvas)
+        # PIL.resize takes (W, H). With pad_to=256 -> 128 this is an exact
+        # 2x box average (no fractional interpolation).
         pil = pil.resize((self.image_size, self.image_size), Image.BILINEAR)
         arr = np.asarray(pil, dtype=np.float32) / 255.0      # (H, W, 3)
         return torch.from_numpy(arr).permute(2, 0, 1)        # (3, H, W)
