@@ -110,6 +110,91 @@ def calc_reconstruction_loss(x, recon_x, loss_type='mse', reduction='sum'):
     return recon_error
 
 
+def calc_object_normalized_recon_loss(x, recon_x, alpha_masks, valid_mask=None,
+                                      loss_type='mse', min_mass=1.0, eps=1e-8,
+                                      include_bg=True, max_amp=None):
+    """Reconstruction error in which every object counts the same, whatever its size.
+
+    The plain pixel sum makes an object's contribution proportional to its area,
+    so a 40x40 sprite outweighs a 5x5 one by ~64x and the model happily ignores
+    small objects. Here the per-pixel error is first averaged *inside* each
+    object's soft mask, and those per-object means are then averaged over the
+    objects present in the frame - every object is worth one term.
+
+    :param x: original inputs, [N, ch, h, w]
+    :param recon_x: reconstruction, [N, ch, h, w]
+    :param alpha_masks: the decoder's composition weights (`importance_map *
+        a_obj`), [N, K, 1, h, w]. They are already gated by `obj_on` and form a
+        soft partition of the image - they sum to <= 1 per pixel, the remainder
+        being the background - so they are exactly the per-object pixel
+        assignment this average needs.
+    :param valid_mask: optional [1, 1, h, w], 1 = real pixel, 0 = padding
+    :param loss_type: "mse" or "l1"
+    :param min_mass: alpha mass, in pixels, a particle needs to count as
+        present. Empty particles carry ~0 mass; without a floor they would each
+        contribute a 0/0 term and dilute the average.
+    :param include_bg: count the uncovered region (1 - sum of alpha masks) as
+        one extra "object". This closes a collapse escape hatch: without it,
+        turning EVERY particle off makes the whole term vanish (0 objects ->
+        empty average -> 0), so the model gets paid to have no objects - which
+        is exactly how Breakout collapsed. With the bg term, all-off just
+        degenerates into the plain mean pixel error, so collapse buys the old
+        loss back instead of zero, and the loss smoothly interpolates between
+        pixel-sum (no objects) and size-invariant (K objects).
+    :param max_amp: cap on how much harder a pixel can be weighted than in the
+        plain pixel loss. Relative to that loss, a pixel of object k carries
+        weight n_pix / (n_terms * mass_k) - ~40x for a 20 px sprite among 10
+        objects, ~700x for a 1 px ball. Early in training every glimpse is
+        garbage, and an error amplified that much is removed fastest by driving
+        obj_on to zero (one scalar) rather than by learning the glimpse (a whole
+        decoder), after which the glimpse gets no gradient at all: that race is
+        how both Kangaroo and Breakout collapsed. The cap floors each object's
+        effective mass so the weight never exceeds max_amp. None = uncapped.
+    :return: [N] per-sample loss, rescaled by the number of valid pixels so that
+        it sits on the same numeric scale as the pixel-sum reconstruction loss
+        (the two coincide when the error is spatially uniform), which keeps
+        beta_rec interpretable and rec_full_weight a true relative weight.
+    """
+    if loss_type == 'mse':
+        err = (recon_x - x) ** 2
+    elif loss_type == 'l1':
+        err = (recon_x - x).abs()
+    else:
+        raise NotImplementedError
+    err = err.sum(1, keepdim=True)  # [N, 1, h, w], summed over channels
+
+    # The masks only *re-weight* the error, they are not optimized through it:
+    # with a live gradient the model could lower the loss by sliding a mask off
+    # the pixels it reconstructs badly instead of reconstructing them.
+    w = alpha_masks.detach()
+    if w.dim() == 5:
+        w = w.squeeze(2)  # [N, K, 1, h, w] -> [N, K, h, w]
+    vm = None
+    if valid_mask is not None:
+        vm = valid_mask.to(w.device).view(1, 1, *w.shape[-2:])
+        w = w * vm
+    mass = w.sum(dim=(-2, -1))  # [N, K] area of each object, in soft pixels
+    present = (mass > min_mass).to(mass.dtype)
+    if include_bg:
+        # the decoder composes rec = bg_mask * bg + sum_k w_k * rgb_k with
+        # bg_mask = 1 - sum_k w_k, so this is the exact bg composition weight.
+        # Particles below min_mass are not their own term, so their pixels are
+        # handed to the background rather than dropped from the loss.
+        bg_w = (1.0 - (w * present[..., None, None]).sum(dim=1, keepdim=True)).clamp(min=0.0)
+        if vm is not None:
+            bg_w = bg_w * vm
+        w = torch.cat([w, bg_w], dim=1)  # [N, K + 1, h, w]
+        mass = torch.cat([mass, bg_w.sum(dim=(-2, -1))], dim=1)
+        present = torch.cat([present, torch.ones_like(present[:, :1])], dim=1)
+    n_terms = present.sum(-1, keepdim=True).clamp(min=1.0)  # [N, 1]
+    n_pix = x.shape[-1] * x.shape[-2] if valid_mask is None else valid_mask.sum()
+    if max_amp is not None:
+        mass = torch.maximum(mass, n_pix / (max_amp * n_terms))
+    obj_err = (w * err).sum(dim=(-2, -1)) / (mass + eps)  # [N, K(+1)] mean error per object
+    loss = (obj_err * present).sum(-1) / n_terms.squeeze(-1)  # [N]
+    return loss * n_pix
+
+
 def calc_kl(logvar, mu, mu_o=0.0, logvar_o=0.0, reduce='sum', balance=0.5):
     """
     Calculate kl-divergence

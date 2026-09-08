@@ -26,6 +26,8 @@
   "ch": 3,
   "normalize_rgb": false,
   "recon_loss_type": "mse",
+  "rec_norm": "pixel",
+  "motion_weight": 0.0,
   "patch_size": 8,
   "n_kp_per_patch": 1,
   "n_kp_enc": 90,
@@ -42,7 +44,7 @@
   "beta_obj": 0.02,
   "features_dist": "gauss",
   "learned_feature_dim": 8,
-  "learned_bg_feature_dim": 8,
+  "learned_bg_feature_dim": 5,
   "n_fg_categories": 8,
   "n_fg_classes": 4,
   "n_bg_categories": 4,
@@ -79,5 +81,7 @@
   "pint_enc_layers": 1,
   "pint_enc_heads": 1,
   "iou_thresh": 0.2,
-  "pad_to": 256
+  "pad_to": 256,
+  "palette_spread": true,
+  "resize_mode": "maxpool"
 }

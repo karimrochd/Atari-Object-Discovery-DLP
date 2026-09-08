@@ -1,0 +1,644 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    60,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.47745,
+   "dominant_frac": 0.95,
+   "inherited": false,
+   "count": 4812693,
+   "share": 0.47745,
+   "median_component_px": 13.0,
+   "median_extent_px": 7.0,
+   "static_frac": 0.952,
+   "eff_area": 2.38,
+   "group": 0,
+   "margin_lab": 19.7
+  },
+  {
+   "src": [
+    240,
+    170,
+    103
+   ],
+   "dst": [
+    150,
+    45,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.36948,
+   "dominant_frac": 0.05,
+   "inherited": false,
+   "count": 3711901,
+   "share": 0.36824,
+   "median_component_px": 1257.0,
+   "median_extent_px": 144.0,
+   "static_frac": 0.991,
+   "eff_area": 293.31,
+   "group": 1,
+   "margin_lab": 34.2
+  },
+  {
+   "src": [
+    84,
+    92,
+    214
+   ],
+   "dst": [
+    120,
+    120,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.11853,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 1190763,
+   "share": 0.11813,
+   "median_component_px": 2.0,
+   "median_extent_px": 2.0,
+   "static_frac": 0.974,
+   "eff_area": 0.25,
+   "group": 2,
+   "margin_lab": 21.7
+  },
+  {
+   "src": [
+    198,
+    108,
+    58
+   ],
+   "dst": [
+    255,
+    30,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00675,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 67837,
+   "share": 0.00673,
+   "median_component_px": 16.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.602,
+   "eff_area": 2.0,
+   "group": 3,
+   "margin_lab": 34.2
+  },
+  {
+   "src": [
+    213,
+    130,
+    74
+   ],
+   "dst": [
+    255,
+    165,
+    0
+   ],
+   "role": "obj",
+   "share_present": 0.00558,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 56093,
+   "share": 0.00556,
+   "median_component_px": 8.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.797,
+   "eff_area": 1.0,
+   "group": 4,
+   "margin_lab": 50.1
+  },
+  {
+   "src": [
+    181,
+    83,
+    40
+   ],
+   "dst": [
+    195,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00519,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 52164,
+   "share": 0.00517,
+   "median_component_px": 8.0,
+   "median_extent_px": 6.0,
+   "static_frac": 0.601,
+   "eff_area": 1.0,
+   "group": 5,
+   "margin_lab": 16.0
+  },
+  {
+   "src": [
+    227,
+    151,
+    89
+   ],
+   "dst": [
+    0,
+    135,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00515,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 51696,
+   "share": 0.00513,
+   "median_component_px": 144.0,
+   "median_extent_px": 144.0,
+   "static_frac": 0.881,
+   "eff_area": 18.0,
+   "group": 6,
+   "margin_lab": 21.7
+  },
+  {
+   "src": [
+    236,
+    236,
+    236
+   ],
+   "dst": [
+    255,
+    135,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00459,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 43942,
+   "share": 0.00436,
+   "median_component_px": 4.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.0,
+   "eff_area": 0.5,
+   "group": 7,
+   "margin_lab": 40.9
+  },
+  {
+   "src": [
+    163,
+    57,
+    21
+   ],
+   "dst": [
+    255,
+    60,
+    135
+   ],
+   "role": "obj",
+   "share_present": 0.0026,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 26080,
+   "share": 0.00259,
+   "median_component_px": 28.0,
+   "median_extent_px": 28.0,
+   "static_frac": 0.942,
+   "eff_area": 3.5,
+   "group": 8,
+   "margin_lab": 41.4
+  },
+  {
+   "src": [
+    187,
+    187,
+    53
+   ],
+   "dst": [
+    255,
+    150,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.0017,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 17031,
+   "share": 0.00169,
+   "median_component_px": 30.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 5.12,
+   "group": 9,
+   "margin_lab": 41.4
+  },
+  {
+   "src": [
+    144,
+    28,
+    0
+   ],
+   "dst": [
+    165,
+    255,
+    0
+   ],
+   "role": "obj",
+   "share_present": 0.00119,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 11960,
+   "share": 0.00119,
+   "median_component_px": 8.0,
+   "median_extent_px": 8.0,
+   "static_frac": 1.0,
+   "eff_area": 1.0,
+   "group": 10,
+   "margin_lab": 34.2
+  },
+  {
+   "src": [
+    252,
+    252,
+    84
+   ],
+   "dst": [
+    255,
+    255,
+    60
+   ],
+   "role": "obj",
+   "share_present": 0.00094,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 9487,
+   "share": 0.00094,
+   "median_component_px": 8.0,
+   "median_extent_px": 6.0,
+   "static_frac": 0.622,
+   "eff_area": 0.88,
+   "group": 11,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    252,
+    224,
+    112
+   ],
+   "dst": [
+    135,
+    255,
+    120
+   ],
+   "role": "obj",
+   "share_present": 0.00158,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 9013,
+   "share": 0.00089,
+   "median_component_px": 56.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 11.38,
+   "group": 12,
+   "margin_lab": 19.7
+  },
+  {
+   "src": [
+    101,
+    111,
+    228
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00065,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 6466,
+   "share": 0.00064,
+   "median_component_px": 2.0,
+   "median_extent_px": 2.0,
+   "static_frac": 0.0,
+   "eff_area": 0.25,
+   "group": 13,
+   "margin_lab": 20.0
+  },
+  {
+   "src": [
+    252,
+    188,
+    116
+   ],
+   "dst": [
+    255,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.00054,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 4632,
+   "share": 0.00046,
+   "median_component_px": 6.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.388,
+   "eff_area": 0.62,
+   "group": 14,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    132,
+    144,
+    252
+   ],
+   "dst": [
+    45,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00054,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 4532,
+   "share": 0.00045,
+   "median_component_px": 11.0,
+   "median_extent_px": 5.0,
+   "static_frac": 0.617,
+   "eff_area": 1.56,
+   "group": 15,
+   "margin_lab": 13.2
+  },
+  {
+   "src": [
+    66,
+    72,
+    200
+   ],
+   "dst": [
+    135,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00037,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 3710,
+   "share": 0.00037,
+   "median_component_px": 5.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.0,
+   "eff_area": 0.5,
+   "group": 16,
+   "margin_lab": 13.2
+  }
+ ],
+ "n_colors": 17,
+ "n_bg": 0,
+ "n_obj": 17,
+ "n_mixed": 0,
+ "n_groups": 17,
+ "groups": [
+  [
+   0
+  ],
+  [
+   1
+  ],
+  [
+   2
+  ],
+  [
+   3
+  ],
+  [
+   4
+  ],
+  [
+   5
+  ],
+  [
+   6
+  ],
+  [
+   7
+  ],
+  [
+   8
+  ],
+  [
+   9
+  ],
+  [
+   10
+  ],
+  [
+   11
+  ],
+  [
+   12
+  ],
+  [
+   13
+  ],
+  [
+   14
+  ],
+  [
+   15
+  ],
+  [
+   16
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 0,
+ "existence": {
+  "theta": 0.78,
+  "n_on_assumed": 17.0,
+  "n_sub_threshold": 2,
+  "groups": [
+   {
+    "group": 13,
+    "eff_area": 0.25,
+    "D": 3.0,
+    "E": 0.75,
+    "sub_threshold": true
+   },
+   {
+    "group": 16,
+    "eff_area": 0.5,
+    "D": 2.28,
+    "E": 1.14,
+    "sub_threshold": false
+   },
+   {
+    "group": 7,
+    "eff_area": 0.5,
+    "D": 2.28,
+    "E": 1.14,
+    "sub_threshold": false
+   },
+   {
+    "group": 14,
+    "eff_area": 0.62,
+    "D": 2.346,
+    "E": 1.466,
+    "sub_threshold": false
+   },
+   {
+    "group": 11,
+    "eff_area": 0.88,
+    "D": 2.055,
+    "E": 1.798,
+    "sub_threshold": false
+   },
+   {
+    "group": 5,
+    "eff_area": 1.0,
+    "D": 2.585,
+    "E": 2.585,
+    "sub_threshold": false
+   },
+   {
+    "group": 15,
+    "eff_area": 1.56,
+    "D": 2.031,
+    "E": 3.174,
+    "sub_threshold": false
+   },
+   {
+    "group": 3,
+    "eff_area": 2.0,
+    "D": 2.014,
+    "E": 4.028,
+    "sub_threshold": false
+   },
+   {
+    "group": 9,
+    "eff_area": 5.12,
+    "D": 1.692,
+    "E": 8.672,
+    "sub_threshold": false
+   },
+   {
+    "group": 12,
+    "eff_area": 11.38,
+    "D": 1.502,
+    "E": 17.082,
+    "sub_threshold": false
+   },
+   {
+    "group": 2,
+    "eff_area": 0.25,
+    "D": 1.443,
+    "E": 0.361,
+    "sub_threshold": true
+   },
+   {
+    "group": 10,
+    "eff_area": 1.0,
+    "D": 1.419,
+    "E": 1.419,
+    "sub_threshold": false
+   },
+   {
+    "group": 4,
+    "eff_area": 1.0,
+    "D": 1.419,
+    "E": 1.419,
+    "sub_threshold": false
+   },
+   {
+    "group": 0,
+    "eff_area": 2.38,
+    "D": 1.401,
+    "E": 3.328,
+    "sub_threshold": false
+   },
+   {
+    "group": 8,
+    "eff_area": 3.5,
+    "D": 1.336,
+    "E": 4.675,
+    "sub_threshold": false
+   },
+   {
+    "group": 6,
+    "eff_area": 18.0,
+    "D": 1.28,
+    "E": 23.045,
+    "sub_threshold": false
+   },
+   {
+    "group": 1,
+    "eff_area": 293.31,
+    "D": 1.377,
+    "E": 403.939,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 6.8,
+  "obj_obj_after": 13.2,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.235,
+  "obj_obj_angular_after": 0.192,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.2776,
+   "smallest": 0.4504
+  },
+  "after": {
+   "all": 0.6306,
+   "smallest": 0.7503
+  }
+ },
+ "game": "RoadRunner",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

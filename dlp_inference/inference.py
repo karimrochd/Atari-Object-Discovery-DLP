@@ -31,25 +31,14 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from .model.models import DLP
-from .transforms import GAME_TRANSFORMS
 
-# new_weights_bg5 = current recipe (pad_to=256, z_obj=8, z_bg=5); old_weights =
-# the original 34 checkpoints. Lookup prefers new_weights_bg5, falls back to old.
-NEW_WEIGHTS = Path(__file__).resolve().parents[1] / "new_weights_bg5"
-OLD_WEIGHTS = Path(__file__).resolve().parents[1] / "old_weights"
-WEIGHTS_ROOT = NEW_WEIGHTS   # default for new training runs
+# weights/<Game>/{best.pth, hparams.json, palette.json}: the shipped recipe
+# (pad 256 -> 2x2 max-pool to 128, z_obj 8, z_bg 5, per-frame bg->black recolor)
+WEIGHTS_ROOT = Path(__file__).resolve().parents[1] / "weights"
 
 
 def _resolve_game_dir(game, weights_root) -> Path:
-    """Game dir under weights_root; when weights_root is the default, fall
-    back to old_weights so every game stays loadable during the transition."""
-    cand = [Path(weights_root) / game]
-    if Path(weights_root) == NEW_WEIGHTS:
-        cand.append(OLD_WEIGHTS / game)
-    for c in cand:
-        if (c / "best.pth").exists():
-            return c
-    return cand[0]
+    return Path(weights_root) / game
 
 _PALETTE = [(80, 220, 80), (250, 120, 120), (110, 170, 255), (255, 200, 80),
             (220, 120, 255), (120, 240, 240), (255, 150, 60), (170, 255, 120),
@@ -92,15 +81,10 @@ def visualize(frame: np.ndarray, out: "TensorDict", upscale: float = 4.0,
 
 
 def list_games(weights_root=WEIGHTS_ROOT) -> List[str]:
-    roots = [Path(weights_root)]
-    if Path(weights_root) == NEW_WEIGHTS and OLD_WEIGHTS.is_dir():
-        roots.append(OLD_WEIGHTS)
-    names = set()
-    for root in roots:
-        if root.is_dir():
-            names |= {p.name for p in root.iterdir()
-                      if (p / "best.pth").exists()}
-    return sorted(names)
+    root = Path(weights_root)
+    if not root.is_dir():
+        return []
+    return sorted(p.name for p in root.iterdir() if (p / "best.pth").exists())
 
 
 def _build_model(cfg) -> DLP:
@@ -181,6 +165,45 @@ def _boxes_from_alpha(alpha: torch.Tensor, alpha_floor=0.05, min_pixels=4):
     return keep, boxes
 
 
+def _boxes_from_alpha_fg(alpha: torch.Tensor, fg: torch.Tensor, alpha_floor=0.05, min_fg_pixels=1):
+    """Pixel-tight boxes: alpha ownership at model resolution, refined
+    against the foreground of the model's own input at native resolution.
+
+    With the bg->black recolor the background of the input is exactly black,
+    so every non-black pixel is sprite (or structure). Each model cell is
+    owned by the particle whose alpha wins the argmax (>= alpha_floor); the
+    owner map is upsampled to the padded canvas and intersected with the
+    non-black pixels, and each particle's box is the min/max of the native
+    pixels it owns - no halo, no 2x2-cell rounding. Particles owning fewer
+    than min_fg_pixels non-black pixels (a box over empty background) are
+    dropped.
+
+    alpha: (K, s, s); fg: (S, S) bool canvas, S a multiple of s.
+    Returns (keep_idx (M,), boxes (M, 4) xyxy in canvas pixels)."""
+    k, s, _ = alpha.shape
+    S = fg.shape[-1]
+    f = S // s
+    device = alpha.device
+    max_a, owner = alpha.max(dim=0)                                   # (s, s)
+    own = torch.where(max_a >= alpha_floor, owner, torch.full_like(owner, k))
+    own = own.repeat_interleave(f, 0).repeat_interleave(f, 1)         # (S, S)
+    lab = torch.where(fg, own, torch.full_like(own, k)).flatten()     # background -> bin k
+    ys = torch.arange(S, device=device).repeat_interleave(S)
+    xs = torch.arange(S, device=device).repeat(S)
+    xmin = torch.full((k + 1,), S, device=device, dtype=torch.long)
+    ymin = torch.full((k + 1,), S, device=device, dtype=torch.long)
+    xmax = torch.full((k + 1,), -1, device=device, dtype=torch.long)
+    ymax = torch.full((k + 1,), -1, device=device, dtype=torch.long)
+    xmin.scatter_reduce_(0, lab, xs, "amin")
+    ymin.scatter_reduce_(0, lab, ys, "amin")
+    xmax.scatter_reduce_(0, lab, xs, "amax")
+    ymax.scatter_reduce_(0, lab, ys, "amax")
+    counts = torch.bincount(lab, minlength=k + 1)[:k]
+    keep = torch.nonzero(counts >= min_fg_pixels).flatten()
+    boxes = torch.stack([xmin[keep], ymin[keep], xmax[keep] + 1, ymax[keep] + 1], dim=1).float()
+    return keep, boxes
+
+
 class DLPInference:
     """Per-game DLP object extractor. See module docstring for the output."""
 
@@ -206,9 +229,6 @@ class DLPInference:
         self.conf_thresh = conf_thresh
         self.tight_boxes = tight_boxes
         self.k_max = k_max
-        # per-game frame transform (e.g. Boxing recolor) applied in __call__;
-        # None for games trained on raw frames
-        self.frame_transform = GAME_TRANSFORMS.get(game)
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
@@ -217,6 +237,23 @@ class DLPInference:
         # checkpoints trained on padded canvases (cfg pad_to > 0) get the
         # same padding at inference; boxes are mapped back to input pixels
         self.pad_to = self.cfg.get("pad_to", 0)
+        # how the padded canvas is downscaled to image_size - must match what
+        # the checkpoint was trained on: "maxpool" (the shipped recipe) or
+        # "interp" (exact box average)
+        self.resize_mode = self.cfg.get("resize_mode", "interp")
+        if self.resize_mode not in ("maxpool", "interp"):
+            raise ValueError(f"{game}: hparams resize_mode {self.resize_mode!r} is not supported by this package")
+        if self.cfg.get("game_transforms", False):
+            raise ValueError(f"{game}: checkpoint trained with legacy per-game frame transforms, not supported by this package")
+        # checkpoints trained with the recolor (hparams palette_spread: true)
+        # carry their palette.json: apply it to every incoming frame, exactly
+        # as the training loader did
+        self.frame_transform = None
+        self.palette_spread = None
+        if self.cfg.get("palette_spread"):
+            from .palette_spread import PaletteSpread
+            self.palette_spread = PaletteSpread.from_file(game_dir / "palette.json")
+            self.frame_transform = self.palette_spread
         self.model = _build_model(self.cfg).to(self.device)
         self.model.load_state_dict(
             torch.load(game_dir / "best.pth", map_location=self.device))
@@ -267,10 +304,21 @@ class DLPInference:
             arr = canvas
         x = torch.from_numpy(arr)
         x = x.permute(0, 3, 1, 2).float() / 255.0
-        # with pad_to=256 -> 128 this is an exact 2x box average (matches the
-        # training-time PIL resize); without padding it is the legacy squash
-        x = F.interpolate(x, size=(self.image_size, self.image_size),
-                          mode="bilinear", align_corners=False)
+        if self.pad_to:
+            # exact-factor downscale in the checkpoint's trained resize_mode.
+            # Done on CPU so it is bit-identical to the training loader
+            # (argmax tie-breaking can differ between CPU and CUDA).
+            factor = self.pad_to // self.image_size
+            if factor > 1:
+                if self.resize_mode == "maxpool":
+                    x = F.max_pool2d(x, kernel_size=factor, stride=factor)
+                else:   # "interp": exact box average
+                    x = F.interpolate(x, size=(self.image_size, self.image_size),
+                                      mode="bilinear", align_corners=False)
+        else:
+            # legacy squash for the old (unpadded) checkpoints
+            x = F.interpolate(x, size=(self.image_size, self.image_size),
+                              mode="bilinear", align_corners=False)
         return x.unsqueeze(1).to(self.device)  # frames as batch, T=1 each
 
     def _frame_tensordict(self, enc, i, orig_hw, conf_thresh) -> TensorDict:
@@ -310,14 +358,16 @@ class DLPInference:
             "background_embedding": enc["z_bg_features"][i, 0].clone(),
         }, batch_size=[])
 
-    def _frame_tensordict_tight(self, enc, i, orig_hw, conf_thresh,
+    def _frame_tensordict_tight(self, enc, i, orig_hw, conf_thresh, fg=None,
                                 alpha_floor=0.05, min_pixels=4) -> TensorDict:
         """Tight boxes from decoded alpha masks - fast path.
 
         Only the particles that pass the confidence gate are decoded, only
         their alpha channel is placed on the canvas (no RGB compositing, no
-        background decode), and the blob->box extraction runs on device
-        (see _boxes_from_alpha)."""
+        background decode), and the blob->box extraction runs on device.
+        With ``fg`` (the non-black pixels of the recolored input on the padded
+        canvas) boxes are pixel-tight (_boxes_from_alpha_fg); without it they
+        follow the alpha ownership at model resolution (_boxes_from_alpha)."""
         h, w = orig_hw
         conf_all = enc["obj_on"][i, 0].squeeze(-1)      # (K,)
         # static top-k selection instead of a data-dependent nonzero gate:
@@ -334,11 +384,15 @@ class DLPInference:
         conf_w = conf * (conf > conf_thresh)            # masked alpha weight
 
         alpha = self._alpha_fn(feats, z, z_scale, conf_w, depth)  # (K', S, S)
-        keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
         s = alpha.shape[-1]
+        if fg is not None:
+            keep, boxes = _boxes_from_alpha_fg(alpha, fg, alpha_floor)   # canvas px already
+            f = 1.0
+        else:
+            keep, boxes = _boxes_from_alpha(alpha, alpha_floor, min_pixels)
+            f = self.pad_to / s if self.pad_to else 1.0
         if self.pad_to:
             # model px -> padded px -> original px (undo the centered pad)
-            f = self.pad_to / s
             top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
             bbox = boxes * f - torch.tensor([left, top, left, top],
                                             device=boxes.device)
@@ -396,10 +450,24 @@ class DLPInference:
 
         x = self._preprocess(arr)
         enc = self.model.encode_all(x, deterministic=True)  # encoder only
-        build = (self._frame_tensordict_tight if tight_boxes
-                 else self._frame_tensordict)
-        out = [build(enc, i, orig_hw, conf_thresh) for i in range(len(arr))]
+        if tight_boxes:
+            fg = self._foreground(arr) if (self.palette_spread is not None and self.pad_to) else None
+            out = [self._frame_tensordict_tight(enc, i, orig_hw, conf_thresh,
+                                                fg=None if fg is None else fg[i])
+                   for i in range(len(arr))]
+        else:
+            out = [self._frame_tensordict(enc, i, orig_hw, conf_thresh) for i in range(len(arr))]
         return out[0] if single else out
+
+    def _foreground(self, arr: np.ndarray) -> torch.Tensor:
+        """(T, pad_to, pad_to) bool: non-black pixels of the recolored frames
+        on the padded canvas (the background is exactly black after the
+        recolor), used to fit boxes to the sprite pixels."""
+        t, h, w = arr.shape[:3]
+        fg = np.zeros((t, self.pad_to, self.pad_to), bool)
+        top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
+        fg[:, top:top + h, left:left + w] = arr.max(axis=-1) > 0
+        return torch.from_numpy(fg).to(self.device)
 
     def visualize(self, frame: np.ndarray, out: TensorDict = None,
                   **kwargs) -> np.ndarray:

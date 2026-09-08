@@ -14,7 +14,7 @@ from .modules import DLPDynamics
 # util functions
 from .util_func import calc_model_size, generate_dlp_logo, reparameterize
 from .loss_functions import calc_reconstruction_loss, calc_kl_beta_dist, calc_kl, LossLPIPS, calc_kl_categorical, \
-    ChamferLossKL
+    ChamferLossKL, calc_object_normalized_recon_loss
 from .vision_modules import rgb_to_minusoneone, minusoneone_to_rgb
 
 
@@ -1069,7 +1069,9 @@ class DLP(nn.Module):
     def forward(self, x, deterministic=False, warmup=False, with_loss=False, beta_kl=0.1, beta_dyn=0.1,
                 beta_rec=1.0, kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
                 balance=0.5, beta_dyn_rec=1.0, num_static=None, actions=None, actions_mask=None, lang_embed=None,
-                beta_obj=0.0, done_mask=None, x_goal=None, valid_mask=None):
+                beta_obj=0.0, done_mask=None, x_goal=None, valid_mask=None,
+                rec_norm="pixel", rec_full_weight=1.0, rec_obj_min_mass=1.0,
+                rec_obj_bg=True, rec_obj_max_amp=None, pixel_weight=None):
         if len(x.shape) == 4:
             # x: [bs, ch, h, w]
             batch_size = x.size(0)
@@ -1314,7 +1316,12 @@ class DLP(nn.Module):
                                        dynamic_discount=dynamic_discount, recon_loss_type=recon_loss_type,
                                        recon_loss_func=recon_loss_func, beta_dyn_rec=beta_dyn_rec,
                                        num_static=num_static, beta_obj=beta_obj, done_mask=done_mask,
-                                       valid_mask=valid_mask)
+                                       valid_mask=valid_mask, rec_norm=rec_norm,
+                                       rec_full_weight=rec_full_weight,
+                                       rec_obj_min_mass=rec_obj_min_mass,
+                                       pixel_weight=pixel_weight,
+                                       rec_obj_bg=rec_obj_bg,
+                                       rec_obj_max_amp=rec_obj_max_amp)
             output_dict['loss_dict'] = loss_dict
         else:
             output_dict['loss_dict'] = None
@@ -1324,7 +1331,9 @@ class DLP(nn.Module):
     def calc_elbo(self, x, model_output, warmup=False, beta_kl=0.1, beta_dyn=0.1, beta_rec=1.0,
                   kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None, balance=0.5,
                   beta_dyn_rec=1.0, num_static=1, use_kl_mask=True, apply_mask_on_obj_on=False, beta_obj=0.0,
-                  done_mask=None, valid_mask=None):
+                  done_mask=None, valid_mask=None, rec_norm="pixel", rec_full_weight=1.0,
+                  rec_obj_min_mass=1.0, rec_obj_bg=True, rec_obj_max_amp=None,
+                  pixel_weight=None):
         # beta_obj = beta_reg in the paper
         if self.is_dynamics_model:
             return self.calc_dyn_elbo(x, model_output, warmup, beta_kl, beta_dyn, beta_rec,
@@ -1336,7 +1345,12 @@ class DLP(nn.Module):
             return self.calc_static_elbo(x, model_output, warmup, beta_kl, beta_dyn, beta_rec,
                                          kl_balance, dynamic_discount, recon_loss_type, recon_loss_func,
                                          balance, use_kl_mask=use_kl_mask, apply_mask_on_obj_on=apply_mask_on_obj_on,
-                                         beta_obj=beta_obj, valid_mask=valid_mask)
+                                         beta_obj=beta_obj, valid_mask=valid_mask, rec_norm=rec_norm,
+                                         rec_full_weight=rec_full_weight,
+                                         rec_obj_min_mass=rec_obj_min_mass,
+                                         rec_obj_bg=rec_obj_bg,
+                                         rec_obj_max_amp=rec_obj_max_amp,
+                                         pixel_weight=pixel_weight)
 
     def calc_dyn_elbo(self, x, model_output, warmup=False, beta_kl=0.1, beta_dyn=0.1, beta_rec=1.0,
                       kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
@@ -1826,7 +1840,9 @@ class DLP(nn.Module):
     def calc_static_elbo(self, x, model_output, warmup=False, beta_kl=0.05, beta_dyn=1.0, beta_rec=1.0,
                          kl_balance=0.001, dynamic_discount=None, recon_loss_type="mse", recon_loss_func=None,
                          balance=0.5, use_kl_mask=True, apply_mask_on_obj_on=False, beta_obj=0.0,
-                         valid_mask=None):
+                         valid_mask=None, rec_norm="pixel", rec_full_weight=1.0,
+                         rec_obj_min_mass=1.0, rec_obj_bg=True, rec_obj_max_amp=None,
+                         pixel_weight=None):
         # x: [batch_size, timestep_horizon, ch, h, w]
         # constant prior for all timesteps (single image DLP)
         # balance: kl balance for dynamics kl posterior and prior
@@ -1877,11 +1893,26 @@ class DLP(nn.Module):
         timestep_horizon = x.shape[1]
         x = x.view(-1, *x.shape[2:])
 
+        loss_rec_obj = torch.zeros((), device=x.device)
         if recon_loss_type == "vgg":
+            # rec_norm has no effect here: LPIPS is not a per-pixel error, so it
+            # cannot be averaged inside an object's mask.
             loss_rec = recon_loss_func(x, rec_x, reduction="mean")
             loss_rec = (x.shape[1] * x.shape[2] * x.shape[3]) * loss_rec
+            loss_rec_pixel = loss_rec
         else:
-            if valid_mask is not None:
+            if pixel_weight is not None:
+                # data-derived per-pixel loss weights (e.g. motion saliency:
+                # W = 1 + lambda on pixels that moved vs a neighbour frame).
+                # A fixed function of the dataset, detached by construction -
+                # this is what makes ignoring a 2-px moving ball expensive.
+                pw = pixel_weight.to(x.device)
+                if pw.shape[0] != x.shape[0]:   # [bs,1,h,w] -> [bs*T,1,h,w]
+                    pw = pw.repeat_interleave(x.shape[0] // pw.shape[0], dim=0)
+                loss_rec = ((rec_x - x) ** 2) * pw
+                if valid_mask is not None:
+                    loss_rec = loss_rec * valid_mask.to(x.device)
+            elif valid_mask is not None:
                 # padded-input training: padding pixels carry no gradient.
                 # calc_reconstruction_loss sums per sample, so mask the
                 # inputs - identical to per-pixel masking for a binary mask.
@@ -1893,7 +1924,30 @@ class DLP(nn.Module):
                 loss_rec = calc_reconstruction_loss(x, rec_x, loss_type='mse',
                                                     reduction='none')
             loss_rec = loss_rec.view(batch_size, timestep_horizon, -1)
-            loss_rec = loss_rec.sum(-1).mean()
+            loss_rec_pixel = loss_rec.sum(-1).mean()
+            if rec_norm == 'per_object':
+                # size-invariant term: average the error inside each object's
+                # alpha mask, then over the objects, so a small sprite weighs
+                # as much as a large one - ADDED to the full pixel sum.
+                # rec_full_weight must stay 1.0: the per-object weights are
+                # detached, so the only pressure keeping a particle alive
+                # against the obj_on KL is reconstruction-through-rendering,
+                # and discounting the pixel term discounts exactly that
+                # defense. At 0.1, Breakout drained from healthy (ep 50) to a
+                # single paddle particle (ep 95) even with the bg term and
+                # max_amp=8, and the collapsed model had LOWER val loss - the
+                # objective preferred it. At 1.0 the loss is the old pixel
+                # loss plus capped extra emphasis, so the existence
+                # equilibrium cannot have less recon pressure than the old
+                # loss.
+                loss_rec_obj = calc_object_normalized_recon_loss(
+                    x, rec_x, alpha_masks, valid_mask=valid_mask,
+                    loss_type='mse', min_mass=rec_obj_min_mass,
+                    include_bg=rec_obj_bg, max_amp=rec_obj_max_amp)
+                loss_rec_obj = loss_rec_obj.view(batch_size, timestep_horizon).mean()
+                loss_rec = loss_rec_obj + rec_full_weight * loss_rec_pixel
+            else:
+                loss_rec = loss_rec_pixel
 
         with torch.no_grad():
             psnr = -10 * torch.log10(F.mse_loss(rec_x, x))
@@ -2002,6 +2056,7 @@ class DLP(nn.Module):
         loss = loss_scale * loss
         loss_dict = {'loss': loss, 'psnr': psnr.detach(), 'kl': loss_kl_static, 'kl_dyn': loss_kl_dyn,
                      'loss_rec': loss_rec,
+                     'loss_rec_pixel': loss_rec_pixel.detach(), 'loss_rec_obj': loss_rec_obj.detach(),
                      'obj_on_l1': obj_on_l1, 'loss_kl_kp': loss_kl_kp, 'loss_kl_feat': loss_kl_feat,
                      'loss_kl_obj_on': loss_kl_obj_on, 'loss_kl_scale': loss_kl_scale, 'loss_kl_depth': loss_kl_depth,
                      'loss_kl_context': loss_kl_context, 'loss_obj_reg': loss_obj_reg}

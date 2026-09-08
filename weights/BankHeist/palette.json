@@ -1,0 +1,542 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.42639,
+   "dominant_frac": 0.58,
+   "inherited": false,
+   "count": 4297967,
+   "share": 0.42639,
+   "median_component_px": 8.0,
+   "median_extent_px": 7.0,
+   "static_frac": 0.37,
+   "eff_area": 1.0,
+   "group": 0,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    142,
+    142,
+    142
+   ],
+   "dst": [
+    60,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.10393,
+   "dominant_frac": 0.22,
+   "inherited": false,
+   "count": 1047655,
+   "share": 0.10393,
+   "median_component_px": 34.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.01,
+   "eff_area": 5.38,
+   "group": 1,
+   "margin_lab": 15.5
+  },
+  {
+   "src": [
+    0,
+    0,
+    148
+   ],
+   "dst": [
+    165,
+    255,
+    0
+   ],
+   "role": "obj",
+   "share_present": 0.09897,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 997620,
+   "share": 0.09897,
+   "median_component_px": 15.0,
+   "median_extent_px": 7.0,
+   "static_frac": 0.98,
+   "eff_area": 1.62,
+   "group": 2,
+   "margin_lab": 36.3
+  },
+  {
+   "src": [
+    104,
+    72,
+    198
+   ],
+   "dst": [
+    0,
+    255,
+    165
+   ],
+   "role": "obj",
+   "share_present": 0.24887,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 819491,
+   "share": 0.0813,
+   "median_component_px": 192.0,
+   "median_extent_px": 24.0,
+   "static_frac": 0.0,
+   "eff_area": 48.0,
+   "group": 3,
+   "margin_lab": 22.8
+  },
+  {
+   "src": [
+    66,
+    158,
+    130
+   ],
+   "dst": [
+    0,
+    165,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.23936,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 595154,
+   "share": 0.05904,
+   "median_component_px": 192.0,
+   "median_extent_px": 24.0,
+   "static_frac": 0.0,
+   "eff_area": 48.0,
+   "group": 4,
+   "margin_lab": 28.8
+  },
+  {
+   "src": [
+    162,
+    162,
+    42
+   ],
+   "dst": [
+    255,
+    150,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.24133,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 583816,
+   "share": 0.05792,
+   "median_component_px": 192.0,
+   "median_extent_px": 24.0,
+   "static_frac": 0.0,
+   "eff_area": 48.0,
+   "group": 5,
+   "margin_lab": 50.6
+  },
+  {
+   "src": [
+    111,
+    111,
+    111
+   ],
+   "dst": [
+    255,
+    150,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.4477,
+   "dominant_frac": 0.1067,
+   "inherited": false,
+   "count": 481366,
+   "share": 0.04775,
+   "median_component_px": 4.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.0,
+   "eff_area": 0.38,
+   "group": 6,
+   "margin_lab": 34.9
+  },
+  {
+   "src": [
+    74,
+    74,
+    74
+   ],
+   "dst": [
+    150,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.4486,
+   "dominant_frac": 0.0933,
+   "inherited": false,
+   "count": 422047,
+   "share": 0.04187,
+   "median_component_px": 4.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.0,
+   "eff_area": 0.38,
+   "group": 7,
+   "margin_lab": 15.5
+  },
+  {
+   "src": [
+    162,
+    98,
+    33
+   ],
+   "dst": [
+    165,
+    0,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.03717,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 374716,
+   "share": 0.03717,
+   "median_component_px": 38.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.908,
+   "eff_area": 7.38,
+   "group": 8,
+   "margin_lab": 33.4
+  },
+  {
+   "src": [
+    210,
+    164,
+    74
+   ],
+   "dst": [
+    150,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.23552,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 348192,
+   "share": 0.03454,
+   "median_component_px": 160.0,
+   "median_extent_px": 24.0,
+   "static_frac": 0.0,
+   "eff_area": 40.0,
+   "group": 9,
+   "margin_lab": 22.8
+  },
+  {
+   "src": [
+    236,
+    200,
+    96
+   ],
+   "dst": [
+    150,
+    150,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.2357,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 95034,
+   "share": 0.00943,
+   "median_component_px": 160.0,
+   "median_extent_px": 24.0,
+   "static_frac": 0.0,
+   "eff_area": 40.0,
+   "group": 10,
+   "margin_lab": 28.8
+  },
+  {
+   "src": [
+    167,
+    26,
+    26
+   ],
+   "dst": [
+    255,
+    60,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00149,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 13760,
+   "share": 0.00137,
+   "median_component_px": 28.0,
+   "median_extent_px": 9.0,
+   "static_frac": 0.29,
+   "eff_area": 5.88,
+   "group": 11,
+   "margin_lab": 33.4
+  },
+  {
+   "src": [
+    148,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    255,
+    60
+   ],
+   "role": "obj",
+   "share_present": 0.00098,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 1783,
+   "share": 0.00018,
+   "median_component_px": 36.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 6.0,
+   "group": 12,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    24,
+    26,
+    167
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00083,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 1399,
+   "share": 0.00014,
+   "median_component_px": 1.0,
+   "median_extent_px": 1.0,
+   "static_frac": 0.0,
+   "eff_area": 0.06,
+   "group": 13,
+   "margin_lab": 32.5
+  }
+ ],
+ "n_colors": 14,
+ "n_bg": 0,
+ "n_obj": 14,
+ "n_mixed": 0,
+ "n_groups": 14,
+ "groups": [
+  [
+   0
+  ],
+  [
+   1
+  ],
+  [
+   2
+  ],
+  [
+   3
+  ],
+  [
+   4
+  ],
+  [
+   5
+  ],
+  [
+   6
+  ],
+  [
+   7
+  ],
+  [
+   8
+  ],
+  [
+   9
+  ],
+  [
+   10
+  ],
+  [
+   11
+  ],
+  [
+   12
+  ],
+  [
+   13
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 0,
+ "existence": {
+  "theta": 0.66,
+  "n_on_assumed": 14.0,
+  "n_sub_threshold": 1,
+  "groups": [
+   {
+    "group": 13,
+    "eff_area": 0.06,
+    "D": 3.0,
+    "E": 0.188,
+    "sub_threshold": true
+   },
+   {
+    "group": 7,
+    "eff_area": 0.38,
+    "D": 2.346,
+    "E": 0.88,
+    "sub_threshold": false
+   },
+   {
+    "group": 6,
+    "eff_area": 0.38,
+    "D": 2.346,
+    "E": 0.88,
+    "sub_threshold": false
+   },
+   {
+    "group": 0,
+    "eff_area": 1.0,
+    "D": 2.346,
+    "E": 2.346,
+    "sub_threshold": false
+   },
+   {
+    "group": 1,
+    "eff_area": 5.38,
+    "D": 2.055,
+    "E": 11.048,
+    "sub_threshold": false
+   },
+   {
+    "group": 11,
+    "eff_area": 5.88,
+    "D": 2.055,
+    "E": 12.075,
+    "sub_threshold": false
+   },
+   {
+    "group": 12,
+    "eff_area": 6.0,
+    "D": 2.055,
+    "E": 12.332,
+    "sub_threshold": false
+   },
+   {
+    "group": 10,
+    "eff_area": 40.0,
+    "D": 1.692,
+    "E": 67.682,
+    "sub_threshold": false
+   },
+   {
+    "group": 9,
+    "eff_area": 40.0,
+    "D": 1.692,
+    "E": 67.682,
+    "sub_threshold": false
+   },
+   {
+    "group": 5,
+    "eff_area": 48.0,
+    "D": 1.692,
+    "E": 81.218,
+    "sub_threshold": false
+   },
+   {
+    "group": 4,
+    "eff_area": 48.0,
+    "D": 1.419,
+    "E": 68.097,
+    "sub_threshold": false
+   },
+   {
+    "group": 3,
+    "eff_area": 48.0,
+    "D": 1.419,
+    "E": 68.097,
+    "sub_threshold": false
+   },
+   {
+    "group": 2,
+    "eff_area": 1.62,
+    "D": 1.419,
+    "E": 2.305,
+    "sub_threshold": false
+   },
+   {
+    "group": 8,
+    "eff_area": 7.38,
+    "D": 1.419,
+    "E": 10.463,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 7.3,
+  "obj_obj_after": 15.5,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.353,
+  "obj_obj_angular_after": 0.312,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.17,
+   "smallest": 0.1391
+  },
+  "after": {
+   "all": 0.5954,
+   "smallest": 0.7108
+  }
+ },
+ "game": "BankHeist",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

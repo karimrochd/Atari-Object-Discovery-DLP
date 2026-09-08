@@ -15,7 +15,8 @@ pipeline.py), operating on this package's per-frame TensorDicts:
 The returned TensorDict has exactly the input attributes plus "id".
 Association cost per (detection, active track) pair:
 
-    if |dy| > max_dy or |dx| > max_dx:   rejected (position gate, [0,1] coords)
+    if |dy| > max_dy or |dx| > max_dx:   rejected (position gate, [0,1] coords;
+                                          default 0.12 = 25 px / 19 px at 210x160)
     else:  cost = w_feat * cos_dist(embeddings)
                 + (1 - w_feat) * L2_centroid_distance / sqrt(2)
 
@@ -68,7 +69,7 @@ def _cos_dist(a: np.ndarray, b: np.ndarray) -> float:
 class HungarianTracker:
     def __init__(self, frame_hw=(210, 160), cost_thresh: float = 0.5,
                  w_feat: float = 0.3, max_age: int = 3,
-                 max_dy: float = 0.2, max_dx: float = 0.2):
+                 max_dy: float = 0.12, max_dx: float = 0.12):
         """frame_hw: (H, W) of the frames given to DLPInference - used to
         normalize the pixel positions to [0, 1] for the distance gate."""
         assert 0.0 <= w_feat <= 1.0

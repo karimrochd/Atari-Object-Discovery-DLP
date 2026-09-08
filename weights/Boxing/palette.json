@@ -1,0 +1,200 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    110,
+    156,
+    66
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.84112,
+   "dominant_frac": 1.0,
+   "inherited": false,
+   "count": 8478491,
+   "share": 0.84112,
+   "median_component_px": 4.0,
+   "median_extent_px": 2.0,
+   "static_frac": 0.973,
+   "eff_area": 0.31,
+   "group": 0,
+   "margin_lab": 15.3
+  },
+  {
+   "src": [
+    195,
+    144,
+    61
+   ],
+   "dst": [
+    210,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.0781,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 787200,
+   "share": 0.0781,
+   "median_component_px": 2624.0,
+   "median_extent_px": 163.0,
+   "static_frac": 1.0,
+   "eff_area": 630.0,
+   "group": 0,
+   "margin_lab": 13.3
+  },
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    210,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.06231,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 628098,
+   "share": 0.06231,
+   "median_component_px": 361.5,
+   "median_extent_px": 46.0,
+   "static_frac": 0.806,
+   "eff_area": 79.81,
+   "group": 0,
+   "margin_lab": 30.2
+  },
+  {
+   "src": [
+    214,
+    214,
+    214
+   ],
+   "dst": [
+    255,
+    255,
+    210
+   ],
+   "role": "obj",
+   "share_present": 0.01299,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 130960,
+   "share": 0.01299,
+   "median_component_px": 26.0,
+   "median_extent_px": 7.0,
+   "static_frac": 0.057,
+   "eff_area": 3.75,
+   "group": 0,
+   "margin_lab": 22.8
+  },
+  {
+   "src": [
+    20,
+    60,
+    0
+   ],
+   "dst": [
+    165,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00548,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 55251,
+   "share": 0.00548,
+   "median_component_px": 12.0,
+   "median_extent_px": 5.0,
+   "static_frac": 0.776,
+   "eff_area": 1.62,
+   "group": 0,
+   "margin_lab": 13.3
+  }
+ ],
+ "n_colors": 5,
+ "n_bg": 0,
+ "n_obj": 5,
+ "n_mixed": 0,
+ "n_groups": 1,
+ "groups": [
+  [
+   0,
+   1,
+   2,
+   3,
+   4
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 0,
+ "existence": {
+  "theta": 0.14,
+  "n_on_assumed": 1.0,
+  "n_sub_threshold": 0,
+  "groups": [
+   {
+    "group": 0,
+    "eff_area": 715.5,
+    "D": 3.0,
+    "E": 2146.5,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 40.2,
+  "obj_obj_after": 13.3,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.176,
+  "obj_obj_angular_after": 0.144,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.1358,
+   "smallest": 0.1358
+  },
+  "after": {
+   "all": 0.8711,
+   "smallest": 0.8711
+  }
+ },
+ "game": "Boxing",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

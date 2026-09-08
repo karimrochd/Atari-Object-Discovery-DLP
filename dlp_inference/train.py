@@ -8,9 +8,13 @@ training is fully unsupervised). Frames are loaded with PIL; the shipped
 checkpoints' channel convention is reproduced automatically as long as the
 PNGs were written the same way as the OCAtari dataset.
 
-Output: ``weights/<Game>/{hparams.json, best.pth}`` - immediately loadable
-with ``DLPInference(game)``. Full quality takes ~100 epochs (hours on a
-recent GPU); pass --epochs 5 --max-frames 400 for a quick smoke run.
+Output: ``weights/<Game>/{hparams.json, palette.json, best.pth}`` - immediately
+loadable with ``DLPInference(game)``. The recipe (config_default.json): frames
+recolored with the per-frame bg->black palette built from the game's own
+training frames (palette_spread.py), zero-padded to 256 and 2x2 max-pooled to
+128, z_obj 8, z_bg 5, plain pixel MSE, 100 epochs (~2.6 h on an H100).
+``--epochs 5 --max-frames 400`` gives a quick smoke run; any config key can
+be overridden with ``--override key=value``.
 """
 
 from __future__ import annotations
@@ -83,8 +87,9 @@ def save_epoch_viz(model, samples, path, conf_thresh=0.5, alpha_floor=0.05):
         a[on <= conf_thresh] = 0.0
         seg = (a.argmax(0) + 1) * (a.max(0) >= alpha_floor)
 
-        panels = [samples[i].permute(1, 2, 0).cpu().numpy().clip(0, 1),
-                  rec.permute(1, 2, 0).cpu().numpy(),
+        # [:3] = display the box-average view when the input is 6-channel
+        panels = [samples[i][:3].permute(1, 2, 0).cpu().numpy().clip(0, 1),
+                  rec[:3].permute(1, 2, 0).cpu().numpy(),
                   palette[seg % 256]]
         for j, (p, title) in enumerate(zip(panels, ("input", "recon", "seg"))):
             axes[i, j].imshow(p)
@@ -116,13 +121,20 @@ def _epoch_loss(model, loader, cfg, device, valid_mask=None):
     with torch.no_grad():
         for batch in loader:
             x = _to_5d(batch[0]).to(device)
+            pw = batch[5].to(device) if len(batch) > 5 else None
             out = model(x, warmup=False, with_loss=True,
                         beta_kl=cfg["beta_kl"], beta_rec=cfg["beta_rec"],
                         kl_balance=cfg["kl_balance"],
                         recon_loss_type=cfg["recon_loss_type"],
                         recon_loss_func=calc_reconstruction_loss,
                         beta_obj=cfg.get("beta_obj", 0.0),
-                        valid_mask=valid_mask)
+                        valid_mask=valid_mask,
+                        rec_norm=cfg.get("rec_norm", "pixel"),
+                        rec_full_weight=cfg.get("rec_full_weight", 1.0),
+                        rec_obj_min_mass=cfg.get("rec_obj_min_mass", 1.0),
+                        rec_obj_bg=cfg.get("rec_obj_bg", True),
+                        rec_obj_max_amp=cfg.get("rec_obj_max_amp"),
+                        pixel_weight=pw)
             losses.append(out["loss_dict"]["loss"].item())
     return sum(losses) / max(1, len(losses))
 
@@ -148,6 +160,18 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "hparams.json").write_text(json.dumps(cfg, indent=2))
 
+    # recolor (palette_spread.py): the palette is derived from the TRAINING
+    # frames of this dataset alone (pixel statistics, no labels) and stored
+    # next to the checkpoint so DLPInference applies the identical mapping
+    palette_file = False
+    if cfg.get("palette_spread", True):
+        from .palette_spread import build_palette
+        palette_file = out_dir / "palette.json"
+        spec = build_palette(game, cfg["root"], palette_file, split="train")
+        mp = spec.get("miss_penalty", {}).get("after", {})
+        print(f"[train] recolor ON (built from {cfg['root']}/images/train): {spec['n_colors']} colors, "
+              f"miss-penalty proxy all {mp.get('all')} smallest {mp.get('smallest')} -> {palette_file}")
+
     model = _build_model(cfg).to(device)
     print(f"[train] {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M "
           f"params | game={game} epochs={cfg['num_epochs']} device={device}")
@@ -156,7 +180,10 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
         return OCAtariDataset(root=cfg["root"], mode=mode, sample_length=1,
                               image_size=cfg["image_size"], games=[game],
                               max_frames=max_frames,
-                              pad_to=cfg.get("pad_to", 0))
+                              pad_to=cfg.get("pad_to", 0),
+                              resize_mode=cfg.get("resize_mode", "maxpool"),
+                              palette_spread=str(palette_file) if palette_file else False,
+                              motion_weight=cfg.get("motion_weight", 0.0))
 
     ds_train, ds_val = split("train"), split("val")
     if len(ds_train) == 0:
@@ -194,19 +221,37 @@ def train(game, root, out_dir=None, num_epochs=None, batch_size=None,
             [_to_5d(ds_val[i][0].unsqueeze(0))[0, 0] for i in range(n_viz)]
         ).to(device)
 
+    # curriculum: the per-object loss punishes badly reconstructed objects
+    # hard enough that untrained glimpses get switched off instead of learned,
+    # so train on the plain pixel loss until glimpses exist, then switch.
+    # Validation always uses the final loss so best.pth is picked on one metric.
+    final_rec_norm = cfg.get("rec_norm", "pixel")
+    rec_obj_start = cfg.get("rec_obj_start_epoch", 0) if final_rec_norm != "pixel" else 0
+
     for epoch in range(cfg["num_epochs"]):
         model.train()
         warmup = epoch < cfg.get("warmup_epoch", 0)
-        pbar = tqdm(train_loader, desc=f"[train] epoch {epoch}", leave=False)
+        rec_norm = final_rec_norm if epoch >= rec_obj_start else "pixel"
+        if epoch == rec_obj_start and rec_obj_start > 0:
+            print(f"[train] epoch {epoch}: switching reconstruction loss "
+                  f"pixel -> {final_rec_norm}")
+        pbar = tqdm(train_loader, desc=f"[train] epoch {epoch} ({rec_norm})", leave=False)
         for batch in pbar:
             x = _to_5d(batch[0]).to(device)
+            pw = batch[5].to(device) if len(batch) > 5 else None
             out = model(x, warmup=warmup, with_loss=True,
                         beta_kl=cfg["beta_kl"], beta_rec=cfg["beta_rec"],
                         kl_balance=cfg["kl_balance"],
                         recon_loss_type=cfg["recon_loss_type"],
                         recon_loss_func=calc_reconstruction_loss,
                         beta_obj=cfg.get("beta_obj", 0.0),
-                        valid_mask=valid_mask)
+                        valid_mask=valid_mask,
+                        rec_norm=rec_norm,
+                        rec_full_weight=cfg.get("rec_full_weight", 1.0),
+                        rec_obj_min_mass=cfg.get("rec_obj_min_mass", 1.0),
+                        rec_obj_bg=cfg.get("rec_obj_bg", True),
+                        rec_obj_max_amp=cfg.get("rec_obj_max_amp"),
+                        pixel_weight=pw)
             loss = out["loss_dict"]["loss"]
             optimizer.zero_grad()
             loss.backward()
@@ -241,13 +286,18 @@ def main():
     ap.add_argument("--max-frames", type=int, default=None,
                     help="cap frames per split (smoke runs)")
     ap.add_argument("--device", default=None)
-    ap.add_argument("--bg-dim", type=int, default=None,
-                    help="override learned_bg_feature_dim (z_bg size, "
-                         "default from config_default.json)")
+    ap.add_argument("--override", nargs="*", default=[], metavar="KEY=VAL",
+                    help="config overrides (config_default.json keys), e.g. "
+                         "resize_mode=interp palette_spread=false "
+                         "(values parsed as JSON, else kept as strings)")
     args = ap.parse_args()
     overrides = {}
-    if args.bg_dim is not None:
-        overrides["learned_bg_feature_dim"] = args.bg_dim
+    for kv in args.override:
+        key, _, val = kv.partition("=")
+        try:
+            overrides[key] = json.loads(val)
+        except json.JSONDecodeError:
+            overrides[key] = val
     train(args.game, args.root, out_dir=args.out, num_epochs=args.epochs,
           batch_size=args.batch_size, device=args.device,
           max_frames=args.max_frames, **overrides)

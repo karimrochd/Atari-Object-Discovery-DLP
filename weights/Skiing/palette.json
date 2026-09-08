@@ -1,0 +1,433 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    236,
+    236,
+    236
+   ],
+   "dst": [
+    150,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.85909,
+   "dominant_frac": 1.0,
+   "inherited": false,
+   "count": 8659662,
+   "share": 0.85909,
+   "median_component_px": 4.0,
+   "median_extent_px": 3.0,
+   "static_frac": 0.985,
+   "eff_area": 0.5,
+   "group": 0,
+   "margin_lab": 38.0
+  },
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    150,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.12127,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 1222368,
+   "share": 0.12127,
+   "median_component_px": 14.0,
+   "median_extent_px": 6.0,
+   "static_frac": 0.984,
+   "eff_area": 1.81,
+   "group": 1,
+   "margin_lab": 50.6
+  },
+  {
+   "src": [
+    82,
+    126,
+    45
+   ],
+   "dst": [
+    150,
+    150,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00535,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 42785,
+   "share": 0.00424,
+   "median_component_px": 231.0,
+   "median_extent_px": 30.0,
+   "static_frac": 0.0,
+   "eff_area": 49.19,
+   "group": 2,
+   "margin_lab": 39.0
+  },
+  {
+   "src": [
+    72,
+    160,
+    72
+   ],
+   "dst": [
+    60,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00522,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 38789,
+   "share": 0.00385,
+   "median_component_px": 231.0,
+   "median_extent_px": 30.0,
+   "static_frac": 0.0,
+   "eff_area": 49.19,
+   "group": 3,
+   "margin_lab": 15.5
+  },
+  {
+   "src": [
+    110,
+    156,
+    66
+   ],
+   "dst": [
+    255,
+    75,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00449,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 32291,
+   "share": 0.0032,
+   "median_component_px": 70.0,
+   "median_extent_px": 17.0,
+   "static_frac": 0.0,
+   "eff_area": 14.38,
+   "group": 4,
+   "margin_lab": 29.3
+  },
+  {
+   "src": [
+    66,
+    72,
+    200
+   ],
+   "dst": [
+    150,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00273,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 27454,
+   "share": 0.00272,
+   "median_component_px": 30.0,
+   "median_extent_px": 14.0,
+   "static_frac": 0.0,
+   "eff_area": 4.88,
+   "group": 5,
+   "margin_lab": 15.5
+  },
+  {
+   "src": [
+    214,
+    92,
+    92
+   ],
+   "dst": [
+    255,
+    135,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00161,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 16272,
+   "share": 0.00161,
+   "median_component_px": 54.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.015,
+   "eff_area": 10.12,
+   "group": 6,
+   "margin_lab": 0.0
+  },
+  {
+   "src": [
+    192,
+    192,
+    192
+   ],
+   "dst": [
+    255,
+    255,
+    60
+   ],
+   "role": "obj",
+   "share_present": 0.00194,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 16250,
+   "share": 0.00161,
+   "median_component_px": 66.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.0,
+   "eff_area": 14.25,
+   "group": 7,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    158,
+    208,
+    101
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00152,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 12753,
+   "share": 0.00127,
+   "median_component_px": 16.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 2.75,
+   "group": 8,
+   "margin_lab": 32.5
+  },
+  {
+   "src": [
+    214,
+    214,
+    214
+   ],
+   "dst": [
+    255,
+    255,
+    150
+   ],
+   "role": "obj",
+   "share_present": 0.00187,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 11316,
+   "share": 0.00112,
+   "median_component_px": 66.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.0,
+   "eff_area": 13.12,
+   "group": 9,
+   "margin_lab": 35.7
+  },
+  {
+   "src": [
+    184,
+    50,
+    50
+   ],
+   "dst": [
+    255,
+    135,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00179,
+   "dominant_frac": 0.0,
+   "inherited": true,
+   "count": 60,
+   "share": 1e-05,
+   "median_component_px": 0.0,
+   "median_extent_px": 0.0,
+   "static_frac": 0.0,
+   "eff_area": 0.0,
+   "group": 10,
+   "margin_lab": 0.0
+  }
+ ],
+ "n_colors": 11,
+ "n_bg": 0,
+ "n_obj": 11,
+ "n_mixed": 0,
+ "n_groups": 11,
+ "groups": [
+  [
+   0
+  ],
+  [
+   1
+  ],
+  [
+   2
+  ],
+  [
+   3
+  ],
+  [
+   4
+  ],
+  [
+   5
+  ],
+  [
+   6
+  ],
+  [
+   7
+  ],
+  [
+   8
+  ],
+  [
+   9
+  ],
+  [
+   10
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 1,
+ "existence": {
+  "theta": 0.5,
+  "n_on_assumed": 10.0,
+  "n_sub_threshold": 0,
+  "groups": [
+   {
+    "group": 8,
+    "eff_area": 2.75,
+    "D": 3.0,
+    "E": 8.25,
+    "sub_threshold": false
+   },
+   {
+    "group": 5,
+    "eff_area": 4.88,
+    "D": 2.346,
+    "E": 11.437,
+    "sub_threshold": false
+   },
+   {
+    "group": 6,
+    "eff_area": 10.12,
+    "D": 2.28,
+    "E": 23.088,
+    "sub_threshold": false
+   },
+   {
+    "group": 9,
+    "eff_area": 13.12,
+    "D": 2.346,
+    "E": 30.792,
+    "sub_threshold": false
+   },
+   {
+    "group": 7,
+    "eff_area": 14.25,
+    "D": 2.055,
+    "E": 29.289,
+    "sub_threshold": false
+   },
+   {
+    "group": 4,
+    "eff_area": 14.38,
+    "D": 2.087,
+    "E": 29.994,
+    "sub_threshold": false
+   },
+   {
+    "group": 3,
+    "eff_area": 49.19,
+    "D": 2.055,
+    "E": 101.098,
+    "sub_threshold": false
+   },
+   {
+    "group": 2,
+    "eff_area": 49.19,
+    "D": 1.692,
+    "E": 83.227,
+    "sub_threshold": false
+   },
+   {
+    "group": 0,
+    "eff_area": 0.5,
+    "D": 1.692,
+    "E": 0.846,
+    "sub_threshold": false
+   },
+   {
+    "group": 1,
+    "eff_area": 1.81,
+    "D": 1.692,
+    "E": 3.067,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 7.8,
+  "obj_obj_after": 15.5,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.235,
+  "obj_obj_angular_after": 0.22,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.2743,
+   "smallest": 0.3732
+  },
+  "after": {
+   "all": 0.7242,
+   "smallest": 0.7765
+  }
+ },
+ "game": "Skiing",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

@@ -1,0 +1,275 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.89863,
+   "dominant_frac": 1.0,
+   "inherited": false,
+   "count": 9058173,
+   "share": 0.89863,
+   "median_component_px": 1.0,
+   "median_extent_px": 1.0,
+   "static_frac": 0.99,
+   "eff_area": 0.06,
+   "group": 0,
+   "margin_lab": 15.3
+  },
+  {
+   "src": [
+    80,
+    89,
+    22
+   ],
+   "dst": [
+    210,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.0703,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 708600,
+   "share": 0.0703,
+   "median_component_px": 2362.0,
+   "median_extent_px": 160.0,
+   "static_frac": 1.0,
+   "eff_area": 568.62,
+   "group": 0,
+   "margin_lab": 13.3
+  },
+  {
+   "src": [
+    134,
+    134,
+    29
+   ],
+   "dst": [
+    255,
+    210,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.01579,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 159156,
+   "share": 0.01579,
+   "median_component_px": 36.0,
+   "median_extent_px": 10.0,
+   "static_frac": 0.0,
+   "eff_area": 6.38,
+   "group": 0,
+   "margin_lab": 15.9
+  },
+  {
+   "src": [
+    181,
+    83,
+    40
+   ],
+   "dst": [
+    255,
+    255,
+    210
+   ],
+   "role": "obj",
+   "share_present": 0.00829,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 57628,
+   "share": 0.00572,
+   "median_component_px": 94.0,
+   "median_extent_px": 18.0,
+   "static_frac": 0.0,
+   "eff_area": 20.5,
+   "group": 0,
+   "margin_lab": 22.3
+  },
+  {
+   "src": [
+    50,
+    132,
+    50
+   ],
+   "dst": [
+    165,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00483,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 48736,
+   "share": 0.00483,
+   "median_component_px": 4.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.06,
+   "eff_area": 0.5,
+   "group": 0,
+   "margin_lab": 13.3
+  },
+  {
+   "src": [
+    162,
+    134,
+    56
+   ],
+   "dst": [
+    255,
+    165,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00397,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 40064,
+   "share": 0.00397,
+   "median_component_px": 4.0,
+   "median_extent_px": 4.0,
+   "static_frac": 0.073,
+   "eff_area": 0.5,
+   "group": 0,
+   "margin_lab": 29.6
+  },
+  {
+   "src": [
+    151,
+    25,
+    122
+   ],
+   "dst": [
+    255,
+    255,
+    165
+   ],
+   "role": "obj",
+   "share_present": 0.00122,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 4469,
+   "share": 0.00044,
+   "median_component_px": 41.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 7.81,
+   "group": 0,
+   "margin_lab": 22.3
+  },
+  {
+   "src": [
+    142,
+    142,
+    142
+   ],
+   "dst": [
+    210,
+    210,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00033,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 3174,
+   "share": 0.00031,
+   "median_component_px": 8.0,
+   "median_extent_px": 8.0,
+   "static_frac": 0.0,
+   "eff_area": 0.88,
+   "group": 0,
+   "margin_lab": 15.9
+  }
+ ],
+ "n_colors": 8,
+ "n_bg": 0,
+ "n_obj": 8,
+ "n_mixed": 0,
+ "n_groups": 1,
+ "groups": [
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 0,
+ "existence": {
+  "theta": 0.14,
+  "n_on_assumed": 1.0,
+  "n_sub_threshold": 0,
+  "groups": [
+   {
+    "group": 0,
+    "eff_area": 605.25,
+    "D": 3.0,
+    "E": 1815.75,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 16.2,
+  "obj_obj_after": 13.3,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.176,
+  "obj_obj_angular_after": 0.14,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.1914,
+   "smallest": 0.214
+  },
+  "after": {
+   "all": 0.8403,
+   "smallest": 0.8227
+  }
+ },
+ "game": "SpaceInvaders",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

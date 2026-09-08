@@ -1,0 +1,23 @@
+# python
+__pycache__/
+*.pyc
+# everything that is not the shipped package + weights
+_archive/
+logs/
+new_weights*/
+old_weights/
+data_boxing_red/
+method_videos/
+pca_viz/
+palettes/
+palette_viz/
+color_transform_viz/
+presentation/
+eval/results/
+eval/results_prf/
+eval/videos/
+eval/compare_all.csv
+weights/*/viz/
+weights/*_crashed_*/
+videos_v3/
+videos_v3.zip

@@ -4218,7 +4218,7 @@ class ParticleEncoder(nn.Module):
         output_logvar = (not self.interaction_features and self.features_dist != 'categorical')
         self.particle_features_enc = ParticleFeaturesEncoder(anchor_s, learned_feature_dim,
                                                              image_size,
-                                                             margin=0, pad_mode=pad_mode,
+                                                             margin=0, ch=cdim, pad_mode=pad_mode,
                                                              ch_mult=obj_ch_mult, base_ch=obj_base_ch,
                                                              final_cnn_ch=obj_final_cnn_ch,
                                                              num_res_blocks=num_res_blocks,
@@ -5259,7 +5259,8 @@ class DLPDecoder(nn.Module):
             particle_dec_net = ObjectDecoderCNNFILM
         else:
             particle_dec_net = ObjectDecoderCNN
-        self.particle_dec = particle_dec_net(patch_size=(self.obj_patch_size, self.obj_patch_size), num_chans=4,
+        self.particle_dec = particle_dec_net(patch_size=(self.obj_patch_size, self.obj_patch_size),
+                                             num_chans=cdim + 1,
                                              bottleneck_size=learned_feature_dim,
                                              use_resblock=self.use_resblock,
                                              pad_mode='replicate', context_dim=context_dim, normalize_rgb=normalize_rgb,

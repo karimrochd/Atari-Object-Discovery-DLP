@@ -1,0 +1,277 @@
+{
+ "mode": "bgblack",
+ "mapping": [
+  {
+   "src": [
+    0,
+    0,
+    0
+   ],
+   "dst": [
+    255,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.89971,
+   "dominant_frac": 1.0,
+   "inherited": false,
+   "count": 9069032,
+   "share": 0.89971,
+   "median_component_px": 10.0,
+   "median_extent_px": 5.0,
+   "static_frac": 0.958,
+   "eff_area": 1.12,
+   "group": 0,
+   "margin_lab": 15.3
+  },
+  {
+   "src": [
+    84,
+    92,
+    214
+   ],
+   "dst": [
+    210,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.09008,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 898971,
+   "share": 0.08918,
+   "median_component_px": 312.0,
+   "median_extent_px": 56.0,
+   "static_frac": 0.686,
+   "eff_area": 64.0,
+   "group": 0,
+   "margin_lab": 13.3
+  },
+  {
+   "src": [
+    198,
+    108,
+    58
+   ],
+   "dst": [
+    255,
+    210,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00847,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 58351,
+   "share": 0.00579,
+   "median_component_px": 72.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.0,
+   "eff_area": 12.5,
+   "group": 0,
+   "margin_lab": 29.6
+  },
+  {
+   "src": [
+    232,
+    232,
+    74
+   ],
+   "dst": [
+    255,
+    255,
+    210
+   ],
+   "role": "obj",
+   "share_present": 0.00244,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 23696,
+   "share": 0.00235,
+   "median_component_px": 30.0,
+   "median_extent_px": 7.0,
+   "static_frac": 0.604,
+   "eff_area": 5.31,
+   "group": 0,
+   "margin_lab": 22.3
+  },
+  {
+   "src": [
+    240,
+    170,
+    103
+   ],
+   "dst": [
+    165,
+    255,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00161,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 14744,
+   "share": 0.00146,
+   "median_component_px": 8.0,
+   "median_extent_px": 5.0,
+   "static_frac": 0.0,
+   "eff_area": 2.0,
+   "group": 0,
+   "margin_lab": 13.3
+  },
+  {
+   "src": [
+    210,
+    210,
+    64
+   ],
+   "dst": [
+    255,
+    165,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00896,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 9938,
+   "share": 0.00099,
+   "median_component_px": 72.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.0,
+   "eff_area": 12.75,
+   "group": 0,
+   "margin_lab": 0.0
+  },
+  {
+   "src": [
+    214,
+    214,
+    214
+   ],
+   "dst": [
+    255,
+    255,
+    165
+   ],
+   "role": "obj",
+   "share_present": 0.00693,
+   "dominant_frac": 0.0,
+   "inherited": false,
+   "count": 5122,
+   "share": 0.00051,
+   "median_component_px": 74.0,
+   "median_extent_px": 16.0,
+   "static_frac": 0.0,
+   "eff_area": 13.12,
+   "group": 0,
+   "margin_lab": 22.3
+  },
+  {
+   "src": [
+    111,
+    210,
+    111
+   ],
+   "dst": [
+    255,
+    165,
+    255
+   ],
+   "role": "obj",
+   "share_present": 0.00435,
+   "dominant_frac": 0.0,
+   "inherited": true,
+   "count": 146,
+   "share": 1e-05,
+   "median_component_px": 0.0,
+   "median_extent_px": 0.0,
+   "static_frac": 0.0,
+   "eff_area": 0.0,
+   "group": 1,
+   "margin_lab": 0.0
+  }
+ ],
+ "n_colors": 8,
+ "n_bg": 0,
+ "n_obj": 8,
+ "n_mixed": 0,
+ "n_groups": 2,
+ "groups": [
+  [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  [
+   7
+  ]
+ ],
+ "thresholds": {
+  "max_obj_share": 0.05,
+  "max_obj_area": 300.0,
+  "max_obj_extent": 40.0,
+  "max_obj_static": 0.7,
+  "speckle_area": 8.0,
+  "size_emphasis": 1.0,
+  "bg_max": 32,
+  "touch_group": 0.25,
+  "cooc_full": 0.2,
+  "cooc_half": 0.05,
+  "min_spacing_all": 0.3,
+  "max_spacing": 0.35,
+  "mixed_min_rate": 0.5,
+  "mixed_max_rate": 4.0,
+  "mixed_min_frac": 0.01,
+  "mixed_max_share_present": 0.15
+ },
+ "n_inherited": 1,
+ "existence": {
+  "theta": 0.14,
+  "n_on_assumed": 1.0,
+  "n_sub_threshold": 0,
+  "groups": [
+   {
+    "group": 0,
+    "eff_area": 110.81,
+    "D": 3.0,
+    "E": 332.438,
+    "sub_threshold": false
+   }
+  ]
+ },
+ "lab_min_dist": {
+  "obj_obj_before": 8.9,
+  "obj_obj_after": 13.3,
+  "obj_bg_before": Infinity,
+  "obj_bg_after": Infinity
+ },
+ "rgb_min_dist": {
+  "obj_bg_after": Infinity,
+  "obj_obj_after": 0.176,
+  "obj_obj_angular_after": 0.144,
+  "note": "over measured (non-inherited) object colors; angular = min(norm)*sin(angle)"
+ },
+ "miss_penalty": {
+  "before": {
+   "all": 0.4746,
+   "smallest": 0.4572
+  },
+  "after": {
+   "all": 0.8495,
+   "smallest": 0.8495
+  }
+ },
+ "game": "Berzerk",
+ "n_frames_sampled": 300,
+ "split": "train",
+ "source": "/lustre/fsn1/projects/rech/ayj/ube83qw/dataset/images/train",
+ "game_transforms": false,
+ "pre_transform": null
+}

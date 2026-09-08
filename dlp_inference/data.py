@@ -48,6 +48,19 @@ class OCAtariDataset(Dataset):
         pad_to=0,              # >0: center the frame on a pad_to^2 zero canvas
                                # before resizing (aspect kept, exact-factor
                                # downscale, no fractional interpolation)
+        resize_mode="maxpool", # padded downscale: "maxpool" (2x2 max, the shipped
+                               # recipe) or "interp" (exact 2x2 box average)
+        palette_spread=False,  # False | path to a palette.json (palette_spread.py):
+                               # per-frame bg->black recolor applied to every frame
+                               # of this dataset before padding and downscaling
+        motion_weight=0.0,     # >0: each item also yields a per-pixel loss-weight
+                               # map W = 1 + motion_weight * moved(p), where moved()
+                               # is the dilated frame difference to the nearest
+                               # +-1 video neighbour (looked up across ALL splits -
+                               # pixels only, no labels). Rewards reconstructing
+                               # what moves (the ball) without touching the model.
+        motion_thresh=8,       # uint8 channel-diff threshold for "moved"
+        motion_dilate=5,       # box dilation (native px) around moved pixels
     ):
         super().__init__()
         assert mode in ['train', 'val', 'valid', 'test']
@@ -84,6 +97,34 @@ class OCAtariDataset(Dataset):
         self.frame_ids   = [e[1] for e in entries]
         self.window_half = window_half
         self.pad_to = pad_to
+        if resize_mode not in ("maxpool", "interp"):
+            raise ValueError(f"resize_mode {resize_mode!r}: expected 'maxpool' or 'interp'")
+        self.resize_mode = resize_mode
+        self.palette_spread = palette_spread
+        self._spread = None
+        self.motion_weight = float(motion_weight)
+        self.motion_thresh = motion_thresh
+        self.motion_dilate = motion_dilate
+        if self.motion_weight > 0:
+            if not pad_to:
+                raise ValueError("motion_weight needs pad_to (exact-factor grid)")
+            # neighbour lookup across every split: the temporal +-1 frame of a
+            # train frame usually landed in val/test (per-frame random split).
+            self._nb_paths = {}
+            for split in ("train", "val", "test"):
+                d = os.path.join(root, "images", split)
+                if not os.path.isdir(d):
+                    continue
+                for fname in os.listdir(d):
+                    if not fname.endswith(".png"):
+                        continue
+                    game, _, fid = fname[:-4].rpartition("_")
+                    if keep_games is not None and game not in keep_games:
+                        continue
+                    try:
+                        self._nb_paths[(game, int(fid))] = os.path.join(d, fname)
+                    except ValueError:
+                        pass
         self.T           = (2 * window_half + 1) if window_half > 0 else sample_length
         self.image_size  = image_size
         self.root        = root
@@ -115,29 +156,57 @@ class OCAtariDataset(Dataset):
 
     def _load_frame(self, idx):
         pil = Image.open(self.paths[idx]).convert('RGB')
-        # per-game frame transform (e.g. Boxing black->red recolor), applied
-        # at train time exactly as DLPInference applies it at inference.
-        # PIL loads the dataset PNGs in the swapped channel convention while
-        # the transforms are defined on true RGB, hence the swap sandwich
-        # (recolor_black itself is order-invariant, but the paint color has
-        # an orientation).
-        from .transforms import GAME_TRANSFORMS
-        tf = GAME_TRANSFORMS.get(self.games[idx])
-        if tf is not None:
-            fr = np.asarray(pil)
-            pil = Image.fromarray(tf(fr[..., ::-1])[..., ::-1])
+        # palette recolor, applied at train time exactly as DLPInference
+        # applies it at inference. PIL loads the dataset PNGs in the swapped
+        # channel convention while the recolor is defined on true RGB, hence
+        # the swap sandwich.
+        sp = self._spread_for()
+        if sp is not None:
+            fr = sp(np.asarray(pil)[..., ::-1])             # -> true RGB -> recolored
+            pil = Image.fromarray(np.ascontiguousarray(fr[..., ::-1]))
         if self.pad_to:
             fr = np.asarray(pil)                             # (H, W, 3)
             h, w = fr.shape[:2]
             canvas = np.zeros((self.pad_to, self.pad_to, 3), np.uint8)
             top, left = (self.pad_to - h) // 2, (self.pad_to - w) // 2
             canvas[top:top + h, left:left + w] = fr
-            pil = Image.fromarray(canvas)
-        # PIL.resize takes (W, H). With pad_to=256 -> 128 this is an exact
-        # 2x box average (no fractional interpolation).
+            # exact-factor downscale, the same op as DLPInference._preprocess
+            f = self.pad_to // self.image_size
+            if f <= 1:
+                arr = canvas.astype(np.float32) / 255.0
+            elif self.resize_mode == "maxpool":
+                # 2x2 max per channel: on the recolored frames (black
+                # background, bright sprites) every sprite pixel survives the
+                # downscale at full contrast instead of being diluted
+                arr = canvas.reshape(self.image_size, f, self.image_size,
+                                     f, 3).max(axis=(1, 3))
+                arr = arr.astype(np.float32) / 255.0
+            else:   # "interp": exact box average, matching _preprocess
+                # Done in float here rather than with PIL: Image.BILINEAR is
+                # NOT a box average (Pillow scales the filter support by the
+                # reduction factor, so a 2x bilinear reduction is a 4-tap
+                # (1,3,3,1)/8 triangle - a wider blur that smears thin
+                # sprites), and Image.BOX rounds back to uint8. This is
+                # bit-exact against inference.py's F.interpolate, which at an
+                # integer factor of 2 with align_corners=False *is* the 2x2
+                # mean, and it stays a true average for any factor f.
+                arr = canvas.reshape(self.image_size, f, self.image_size,
+                                     f, 3).mean(axis=(1, 3), dtype=np.float32)
+                arr = arr / 255.0
+            return torch.from_numpy(arr).permute(2, 0, 1)    # (3, H, W)
+        # legacy squash for unpadded configs (PIL.resize takes (W, H))
         pil = pil.resize((self.image_size, self.image_size), Image.BILINEAR)
         arr = np.asarray(pil, dtype=np.float32) / 255.0      # (H, W, 3)
         return torch.from_numpy(arr).permute(2, 0, 1)        # (3, H, W)
+
+    def _spread_for(self):
+        """The dataset's PaletteSpread (loaded once), or None when disabled."""
+        if not self.palette_spread:
+            return None
+        if self._spread is None:
+            from .palette_spread import PaletteSpread
+            self._spread = PaletteSpread.from_file(self.palette_spread)
+        return self._spread
 
     def _window_indices(self, idx):
         """Dataset indices for the [t-K, t+K] window around center `idx`.
@@ -154,6 +223,30 @@ class OCAtariDataset(Dataset):
             out.append(self._frame_index[(game, fid + nearest)])
         return out
 
+    def _motion_map(self, idx):
+        """(1, image_size, image_size) loss-weight map: 1 everywhere, plus
+        motion_weight on pixels that differ from the nearest +-1 neighbour
+        frame (dilated). Computed on raw PNGs - a fixed function of the data,
+        so unlike mask-derived weights it cannot be gamed by the model. No
+        neighbour -> all-ones (no bias, just no boost)."""
+        from scipy.ndimage import maximum_filter
+        game, fid = self.games[idx], self.frame_ids[idx]
+        nb = self._nb_paths.get((game, fid - 1)) or self._nb_paths.get((game, fid + 1))
+        H = W = self.image_size
+        if nb is None:
+            return torch.ones(1, H, W)
+        a = np.asarray(Image.open(self.paths[idx]).convert("RGB"), np.int16)
+        b = np.asarray(Image.open(nb).convert("RGB"), np.int16)
+        m = (np.abs(a - b).max(-1) > self.motion_thresh)
+        m = maximum_filter(m, size=self.motion_dilate).astype(np.float32)
+        canvas = np.zeros((self.pad_to, self.pad_to), np.float32)
+        top, left = (self.pad_to - m.shape[0]) // 2, (self.pad_to - m.shape[1]) // 2
+        canvas[top:top + m.shape[0], left:left + m.shape[1]] = m
+        f = self.pad_to // self.image_size
+        if f > 1:   # same exact box average as the frame itself
+            canvas = canvas.reshape(H, f, W, f).mean(axis=(1, 3))
+        return torch.from_numpy(1.0 + self.motion_weight * canvas)[None]
+
     def __getitem__(self, idx):
         if self.window_half > 0:
             frames = [self._load_frame(i) for i in self._window_indices(idx)]
@@ -166,4 +259,6 @@ class OCAtariDataset(Dataset):
         size      = torch.zeros(0)
         id_       = torch.zeros(0)
         in_camera = torch.zeros(0)
+        if self.motion_weight > 0:
+            return video, pos, size, id_, in_camera, self._motion_map(idx)
         return video, pos, size, id_, in_camera
